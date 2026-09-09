@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Space Impact Modernized // Retro-Futuristic Vector Edition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+      }
+
+      body {
+        background: #030712;
+        color: #f8fafc;
+        font-family: 'Share Tech Mono', monospace;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      header {
+        width: 100%;
+        max-width: 960px;
+        padding: 8px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(0, 240, 255, 0.25);
+        border-bottom: none;
+        border-radius: 8px 8px 0 0;
+      }
+
+      .logo-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .logo-title {
+        font-weight: 800;
+        font-size: 15px;
+        letter-spacing: 1.5px;
+        color: #00f0ff;
+        text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+      }
+
+      .nokia-badge {
+        font-size: 11px;
+        padding: 2px 6px;
+        background: rgba(56, 189, 248, 0.15);
+        border: 1px solid #38bdf8;
+        border-radius: 4px;
+        color: #38bdf8;
+      }
+
+      .controls-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      button.btn {
+        background: #1e293b;
+        color: #cbd5e1;
+        border: 1px solid #475569;
+        border-radius: 4px;
+        padding: 5px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        font-family: 'Share Tech Mono', monospace;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      button.btn:hover {
+        background: #334155;
+        border-color: #00f0ff;
+        color: #ffffff;
+      }
+
+      button.btn.active {
+        border-color: #00f0ff;
+        color: #00f0ff;
+        box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+      }
+
+      button.btn.muted {
+        border-color: #ef4444;
+        color: #f87171;
+      }
+
+      #gameContainer {
+        position: relative;
+        width: 100%;
+        max-width: 960px;
+        aspect-ratio: 16 / 9;
+        background: #000;
+        box-shadow: 0 0 30px rgba(0, 240, 255, 0.15);
+        border: 1px solid rgba(0, 240, 255, 0.3);
+      }
+
+      canvas#gameCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        image-rendering: auto;
+      }
+
+      /* CRT Scanline Overlay */
+      #crt-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        background: linear-gradient(
+          rgba(18, 16, 16, 0) 50%, 
+          rgba(0, 0, 0, 0.22) 50%
+        ), linear-gradient(
+          90deg,
+          rgba(255, 0, 0, 0.02),
+          rgba(0, 255, 0, 0.01),
+          rgba(0, 0, 255, 0.02)
+        );
+        background-size: 100% 3px, 6px 100%;
+        opacity: 0.85;
+        transition: opacity 0.2s ease;
+      }
+
+      #crt-overlay.disabled {
+        opacity: 0;
+      }
+
+      /* Touch Overlay Controls (T14) */
+      #touch-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: 18px 24px;
+        z-index: 10;
+      }
+
+      #touch-overlay.hidden {
+        display: none !important;
+      }
+
+      #touch-dpad {
+        position: relative;
+        width: 130px;
+        height: 130px;
+        border-radius: 50%;
+        background: rgba(15, 23, 42, 0.55);
+        border: 2px solid rgba(0, 240, 255, 0.5);
+        pointer-events: auto;
+        touch-action: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #touch-stick {
+        position: absolute;
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        background: rgba(0, 240, 255, 0.4);
+        border: 2px solid #00f0ff;
+        box-shadow: 0 0 12px rgba(0, 240, 255, 0.6);
+        pointer-events: none;
+      }
+
+      #touch-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 10px;
+        pointer-events: auto;
+      }
+
+      .touch-action-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .touch-action-btn {
+        background: rgba(15, 23, 42, 0.75);
+        border: 2px solid #00f0ff;
+        border-radius: 50%;
+        width: 62px;
+        height: 62px;
+        color: #00f0ff;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        cursor: pointer;
+        pointer-events: auto;
+        touch-action: none;
+        box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+        transition: transform 0.05s ease, background 0.05s ease;
+      }
+
+      .touch-action-btn:active {
+        transform: scale(0.92);
+        background: rgba(0, 240, 255, 0.3);
+      }
+
+      .touch-action-btn.small {
+        width: 48px;
+        height: 48px;
+        font-size: 10px;
+        border-color: #38bdf8;
+        color: #38bdf8;
+      }
+
+      .touch-action-btn.action-fire {
+        width: 72px;
+        height: 72px;
+        border-color: #00ff66;
+        color: #00ff66;
+        font-size: 14px;
+        box-shadow: 0 0 14px rgba(0, 255, 102, 0.35);
+      }
+
+      .touch-action-btn.action-special {
+        border-color: #ff0055;
+        color: #ff0055;
+        box-shadow: 0 0 12px rgba(255, 0, 85, 0.35);
+      }
+
+      footer {
+        width: 100%;
+        max-width: 960px;
+        padding: 8px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(0, 240, 255, 0.25);
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        font-size: 11px;
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo-group">
+        <span class="logo-title">SPACE IMPACT</span>
+        <span class="nokia-badge">NOKIA 3310 MODERNIZED</span>
+      </div>
+      <div class="controls-bar">
+        <button id="touchToggleBtn" class="btn" title="Toggle On-Screen Touch Controls">📱 Touch: Auto</button>
+        <button id="crtBtn" class="btn active" title="Toggle Scanlines">📺 CRT: ON</button>
+        <button id="muteBtn" class="btn" title="Mute Audio [M]">🔊 Audio: ON</button>
+      </div>
+    </header>
+
+    <div id="gameContainer">
+      <canvas id="gameCanvas" width="960" height="540"></canvas>
+      <div id="crt-overlay"></div>
+
+      <!-- On-Screen Virtual Touch Controls (T14) -->
+      <div id="touch-overlay">
+        <div id="touch-dpad">
+          <div id="touch-stick"></div>
+        </div>
+        <div id="touch-actions">
+          <div class="touch-action-row">
+            <div id="touch-pause" class="touch-action-btn small">PAUSE</div>
+            <div id="touch-cycle" class="touch-action-btn small">SWAP</div>
+          </div>
+          <div class="touch-action-row">
+            <div id="touch-secondary" class="touch-action-btn action-special">SPECIAL</div>
+            <div id="touch-primary" class="touch-action-btn action-fire">FIRE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div>[WASD / Arrows] Move &bull; [Space / Z] Fire &bull; [X / Shift] Special &bull; [Tab] Swap &bull; [P / Esc] Pause</div>
+      <div>60 FPS &bull; Native Web Audio &bull; Pure Canvas 2D &bull; Gamepad API</div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
