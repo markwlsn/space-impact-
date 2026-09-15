@@ -13,6 +13,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const input = engine.getInputHandler();
 
   // HTML UI Elements
+  const scaleToggleBtn = document.getElementById('scaleToggleBtn') as HTMLButtonElement;
   const touchOverlay = document.getElementById('touch-overlay');
   const touchToggleBtn = document.getElementById('touchToggleBtn') as HTMLButtonElement;
   const deviceBadge = document.getElementById('device-badge');
@@ -114,6 +115,17 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Scale Mode Toggle (16:9 Fit vs Stretch/Fill)
+  let isFillMode = false;
+  scaleToggleBtn?.addEventListener('click', () => {
+    isFillMode = !isFillMode;
+    document.body.classList.toggle('mode-fill', isFillMode);
+    if (scaleToggleBtn) {
+      scaleToggleBtn.textContent = isFillMode ? '🔍 Scale: Stretched' : '🔍 Scale: 16:9';
+      scaleToggleBtn.classList.toggle('active', isFillMode);
+    }
+  });
+
   // Fullscreen API toggle
   fullscreenBtn?.addEventListener('click', () => {
     const doc = document as any;
@@ -125,6 +137,7 @@ window.addEventListener('DOMContentLoaded', () => {
       } else if (docEl.webkitRequestFullscreen) {
         docEl.webkitRequestFullscreen();
       }
+      document.body.classList.add('is-fullscreen');
       fullscreenBtn.textContent = '⛶ Exit Full';
       fullscreenBtn.classList.add('active');
     } else {
@@ -133,18 +146,24 @@ window.addEventListener('DOMContentLoaded', () => {
       } else if (doc.webkitExitFullscreen) {
         doc.webkitExitFullscreen();
       }
+      document.body.classList.remove('is-fullscreen');
       fullscreenBtn.textContent = '⛶ Fullscreen';
       fullscreenBtn.classList.remove('active');
     }
   });
 
-  document.addEventListener('fullscreenchange', () => {
-    const isFull = !!document.fullscreenElement;
+  const handleFullscreenSync = () => {
+    const doc = document as any;
+    const isFull = !!(doc.fullscreenElement || doc.webkitFullscreenElement);
+    document.body.classList.toggle('is-fullscreen', isFull);
     if (fullscreenBtn) {
       fullscreenBtn.textContent = isFull ? '⛶ Exit Full' : '⛶ Fullscreen';
       fullscreenBtn.classList.toggle('active', isFull);
     }
-  });
+  };
+
+  document.addEventListener('fullscreenchange', handleFullscreenSync);
+  document.addEventListener('webkitfullscreenchange', handleFullscreenSync);
 
   // CRT Scanline Toggle
   let crtActive = true;
