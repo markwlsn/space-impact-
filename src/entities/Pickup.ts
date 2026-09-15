@@ -49,6 +49,9 @@ export class Pickup implements Entity {
     } else if (this.type === 'REPAIR') {
       color = '#00ff66';
       label = '+';
+    } else if (this.type === 'GOLD_COIN') {
+      color = '#ffea00';
+      label = '✪';
     }
 
     // Outer rotating glowing capsule diamond

@@ -1,7 +1,5 @@
-import { Entity, Vector2D, BoundingBox, ProjectileOwner } from '../types';
+import { Entity, Vector2D, BoundingBox, ProjectileOwner, ProjectileKind } from '../types';
 import { ParticleSystem } from '../graphics/ParticleSystem';
-
-export type ProjectileKind = 'PLASMA' | 'ENEMY_BULLET' | 'MEGABOMB' | 'BEAM_LASER' | 'HOMING_MISSILE';
 
 export class Projectile implements Entity {
   public id: string;
@@ -49,6 +47,15 @@ export class Projectile implements Entity {
 
     if (kind === 'PLASMA') {
       this.box = { x, y: y - 3, width: 18, height: 6 };
+    } else if (kind === 'QUAD_LASER') {
+      this.box = { x, y: y - 3, width: 22, height: 6 };
+    } else if (kind === 'TURRET_SPREAD') {
+      this.box = { x, y: y - 4, width: 16, height: 8 };
+    } else if (kind === 'EMERALD_LASER') {
+      this.box = { x, y: y - 2.5, width: 24, height: 5 };
+    } else if (kind === 'PHASER_BEAM') {
+      this.box = { x, y: y - 8, width: 960, height: 16 };
+      this.maxLifeTime = 0.25; // Continuous pulse beam
     } else if (kind === 'ENEMY_BULLET') {
       this.box = { x: x - 4, y: y - 4, width: 8, height: 8 };
       this.radius = 4;
@@ -73,11 +80,22 @@ export class Projectile implements Entity {
       return;
     }
 
-    if (this.kind === 'PLASMA') {
+    if (
+      this.kind === 'PLASMA' ||
+      this.kind === 'QUAD_LASER' ||
+      this.kind === 'TURRET_SPREAD' ||
+      this.kind === 'EMERALD_LASER'
+    ) {
       this.position.x += this.velocity.x * dt;
+      this.position.y += this.velocity.y * dt;
       this.box.x = this.position.x;
-      this.box.y = this.position.y - 3;
-      if (this.position.x > 980) this.isDead = true;
+      this.box.y = this.position.y - this.box.height / 2;
+      if (this.position.x > 990 || this.position.y < -40 || this.position.y > 580) {
+        this.isDead = true;
+      }
+    } else if (this.kind === 'PHASER_BEAM') {
+      this.box.x = this.position.x;
+      this.box.y = this.position.y - 8;
     } else if (this.kind === 'ENEMY_BULLET') {
       this.position.x += this.velocity.x * dt;
       this.position.y += this.velocity.y * dt;
@@ -176,10 +194,62 @@ export class Projectile implements Entity {
       ctx.ellipse(this.position.x + 8, this.position.y, 10, 3, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Cyan outer tracer
       ctx.strokeStyle = '#00f0ff';
       ctx.lineWidth = 1.5;
       ctx.stroke();
+    } else if (this.kind === 'QUAD_LASER') {
+      // Star Wars X-Wing Crimson Red Quad Laser
+      ctx.shadowColor = '#ff2244';
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = '#ffffff';
+
+      ctx.beginPath();
+      ctx.ellipse(this.position.x + 10, this.position.y, 11, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ff2244';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+    } else if (this.kind === 'TURRET_SPREAD') {
+      // Millennium Falcon Heavy Gold Turret Blaster
+      ctx.shadowColor = '#ffea00';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = '#ffffff';
+
+      ctx.beginPath();
+      ctx.ellipse(this.position.x + 8, this.position.y, 8, 3.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffaa00';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (this.kind === 'EMERALD_LASER') {
+      // TIE Phantom High-Speed Green Imperial Laser
+      ctx.shadowColor = '#00ff66';
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = '#ffffff';
+
+      ctx.beginPath();
+      ctx.ellipse(this.position.x + 12, this.position.y, 12, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#00ff66';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+    } else if (this.kind === 'PHASER_BEAM') {
+      // Star Trek Enterprise Continuous Amber Phaser Beam
+      const flicker = 0.8 + 0.2 * Math.sin(this.lifeTime * 50);
+      ctx.globalAlpha = flicker;
+
+      // Outer amber glow
+      ctx.shadowColor = '#ffaa00';
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = 'rgba(255, 170, 0, 0.45)';
+      ctx.fillRect(this.position.x, this.position.y - 7, this.beamWidth, 14);
+
+      // Core white-gold laser
+      ctx.fillStyle = '#fff8e0';
+      ctx.fillRect(this.position.x, this.position.y - 2, this.beamWidth, 4);
     } else if (this.kind === 'ENEMY_BULLET') {
       // Glowing crimson/amber enemy bullet
       ctx.shadowColor = '#ff2255';

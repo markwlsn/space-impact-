@@ -2,6 +2,7 @@ import { GameState, StageId, HighScoreRecord } from '../types';
 import { EntityManager } from '../core/EntityManager';
 import { highScoreManager } from './HighScoreManager';
 import { soundSynthesizer } from '../audio/SoundSynthesizer';
+import { shopManager } from './ShopManager';
 
 export interface UIActionCallbacks {
   onStartGame: () => void;
@@ -11,6 +12,8 @@ export interface UIActionCallbacks {
   onToggleTouch: () => void;
   onSkipIntro: () => void;
   onConfirmPilot: (pilot: string) => void;
+  onOpenShop?: () => void;
+  onCloseShop?: () => void;
 }
 
 interface KeypadButton {
@@ -35,6 +38,10 @@ export class UIManager {
   public showInstructions: boolean = false;
   public showLeaderboard: boolean = false;
 
+  // Shop state
+  public selectedShopShipIndex: number = 0;
+  private previousState: GameState = 'TITLE';
+
   private callbacks: UIActionCallbacks | null = null;
   private time: number = 0;
 
@@ -45,6 +52,36 @@ export class UIManager {
 
   public setCallbacks(callbacks: UIActionCallbacks): void {
     this.callbacks = callbacks;
+  }
+
+  public openShop(): void {
+    this.previousState = this.currentState;
+    this.currentState = 'SHOP';
+    this.callbacks?.onOpenShop?.();
+    soundSynthesizer.playUiBeep();
+  }
+
+  public closeShop(): void {
+    this.currentState = this.previousState === 'PAUSED' ? 'PAUSED' : 'TITLE';
+    this.callbacks?.onCloseShop?.();
+    soundSynthesizer.playUiBeep();
+  }
+
+  public actOnSelectedShip(): void {
+    const ships = shopManager.getAllShips();
+    const ship = ships[this.selectedShopShipIndex];
+    if (!ship) return;
+
+    if (shopManager.isShipUnlocked(ship.id)) {
+      shopManager.equipShip(ship.id);
+      soundSynthesizer.playPowerup();
+    } else {
+      if (shopManager.unlockShip(ship.id)) {
+        soundSynthesizer.playCoinInsert();
+      } else {
+        soundSynthesizer.playDamage();
+      }
+    }
   }
 
   public update(dt: number): void {
@@ -98,6 +135,32 @@ export class UIManager {
         return;
       }
 
+      if (this.currentState === 'SHOP') {
+        const ships = shopManager.getAllShips();
+        if (e.code === 'Escape') {
+          e.preventDefault();
+          this.closeShop();
+        } else if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+          e.preventDefault();
+          this.selectedShopShipIndex = (this.selectedShopShipIndex - 1 + ships.length) % ships.length;
+          soundSynthesizer.playUiBeep();
+        } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+          e.preventDefault();
+          this.selectedShopShipIndex = (this.selectedShopShipIndex + 1) % ships.length;
+          soundSynthesizer.playUiBeep();
+        } else if (e.code === 'Enter' || e.code === 'Space') {
+          e.preventDefault();
+          this.actOnSelectedShip();
+        }
+        return;
+      }
+
+      if ((this.currentState === 'TITLE' || this.currentState === 'PAUSED') && e.code === 'KeyH') {
+        e.preventDefault();
+        this.openShop();
+        return;
+      }
+
       if (this.currentState === 'TITLE' && e.code === 'KeyI') {
         this.currentState = 'CINEMATIC_INTRO';
         this.introTimer = 0;
@@ -140,7 +203,62 @@ export class UIManager {
       return;
     }
 
-    this.callbacks?.onStartGame();
+    if (this.currentState === 'SHOP') {
+      this.handleShopClick(x, y);
+      return;
+    }
+
+    if (this.currentState === 'TITLE') {
+      // Check if clicking Hangar / Shop button [x: 290-670, y: 265-305]
+      if (x >= 280 && x <= 680 && y >= 265 && y <= 305) {
+        this.openShop();
+        return;
+      }
+      this.callbacks?.onStartGame();
+      return;
+    }
+
+    if (this.currentState === 'PAUSED') {
+      // Check if clicking Hangar / Shop button [x: 290-670, y: 325-365]
+      if (x >= 280 && x <= 680 && y >= 325 && y <= 365) {
+        this.openShop();
+        return;
+      }
+      return;
+    }
+
+    if (this.currentState === 'GAME_OVER' || this.currentState === 'VICTORY') {
+      this.callbacks?.onStartGame();
+      return;
+    }
+
+    // CRITICAL BUG FIX: In 'PLAYING', do NOT reset the game! Mouse clicks during gameplay do nothing to game lifecycle.
+  }
+
+  private handleShopClick(x: number, y: number): void {
+    const ships = shopManager.getAllShips();
+
+    // 1. Ship catalog list cards (left column: x = 35 to 365)
+    for (let i = 0; i < ships.length; i++) {
+      const cardY = 80 + i * 78;
+      if (x >= 35 && x <= 365 && y >= cardY && y <= cardY + 70) {
+        this.selectedShopShipIndex = i;
+        soundSynthesizer.playUiBeep();
+        return;
+      }
+    }
+
+    // 2. Action Buy / Equip button (x = 440 to 870, y = 435 to 485)
+    if (x >= 440 && x <= 870 && y >= 435 && y <= 485) {
+      this.actOnSelectedShip();
+      return;
+    }
+
+    // 3. Return button (x = 35 to 200, y = 485 to 520)
+    if (x >= 35 && x <= 200 && y >= 485 && y <= 520) {
+      this.closeShop();
+      return;
+    }
   }
 
   public confirmPilot(): void {
@@ -210,6 +328,8 @@ export class UIManager {
       this.drawPilotRegistration(ctx);
     } else if (state === 'TITLE') {
       this.drawTitleScreen(ctx);
+    } else if (state === 'SHOP') {
+      this.drawShopModal(ctx);
     } else if (state === 'PLAYING') {
       this.drawHUD(ctx, stageId, stageProgress, entities, isTouchEnabled);
     } else if (state === 'PAUSED') {
@@ -473,7 +593,7 @@ export class UIManager {
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = '#00f0ff';
       ctx.shadowBlur = 8;
-      ctx.fillText('"This is a fanmade game made to remaster the old games in old technologies."', this.width / 2, msgY + 45);
+      ctx.fillText('"This is a fanmade game that aims to innovate and remaster old games."', this.width / 2, msgY + 45);
 
       ctx.font = '16px "Share Tech Mono", monospace';
       ctx.fillStyle = '#88ddff';
@@ -797,22 +917,47 @@ export class UIManager {
     // Blinking Start Prompt
     const blink = Math.sin(this.time * 5) > 0;
     if (blink) {
-      ctx.font = 'bold 24px "Share Tech Mono", monospace';
+      ctx.font = 'bold 22px "Share Tech Mono", monospace';
       ctx.fillStyle = '#00ff66';
       ctx.shadowColor = '#00ff66';
       ctx.shadowBlur = 15;
-      ctx.fillText('[ PRESS SPACE OR CLICK TO DEPLOY ]', this.width / 2, 255);
+      ctx.fillText('[ PRESS SPACE OR CLICK TO DEPLOY ]', this.width / 2, 235);
     }
 
+    // Interactive Hangar / Ship Shop Button
+    const shopBtnX = this.width / 2 - 200;
+    const shopBtnY = 255;
+    const shopBtnW = 400;
+    const shopBtnH = 36;
+    ctx.fillStyle = 'rgba(10, 24, 48, 0.9)';
+    ctx.fillRect(shopBtnX, shopBtnY, shopBtnW, shopBtnH);
+    ctx.strokeStyle = '#ffea00';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#ffea00';
+    ctx.shadowBlur = 8;
+    ctx.strokeRect(shopBtnX, shopBtnY, shopBtnW, shopBtnH);
+
+    ctx.font = 'bold 15px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffea00';
+    ctx.shadowColor = '#ffea00';
+    ctx.shadowBlur = 6;
+    ctx.fillText('★ [H] SPACESHIP HANGAR & FLEET REQUISITIONS ★', this.width / 2, shopBtnY + 23);
+
+    const equipped = shopManager.getEquippedShip();
+    ctx.font = '13px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#88ddff';
+    ctx.shadowBlur = 0;
+    ctx.fillText(`VESSEL: ${equipped.name}  |  CREDITS: ✪ ${shopManager.getGold()}`, this.width / 2, 312);
+
     // High Scores Hall of Fame
-    ctx.font = 'bold 16px "Share Tech Mono", monospace';
+    ctx.font = 'bold 15px "Share Tech Mono", monospace';
     ctx.fillStyle = '#00f0ff';
-    ctx.fillText('=== HALL OF FAME // TOP 5 ===', this.width / 2, 310);
+    ctx.fillText('=== HALL OF FAME // TOP 5 ===', this.width / 2, 342);
 
     const scores = highScoreManager.getHighScores();
-    ctx.font = '14px "Share Tech Mono", monospace';
+    ctx.font = '13px "Share Tech Mono", monospace';
     scores.forEach((rec: HighScoreRecord, idx: number) => {
-      const rowY = 338 + idx * 24;
+      const rowY = 366 + idx * 22;
       ctx.fillStyle = idx === 0 ? '#ffea00' : '#e0f8ff';
       ctx.shadowColor = idx === 0 ? '#ffea00' : '#00f0ff';
       ctx.shadowBlur = idx === 0 ? 8 : 4;
@@ -981,6 +1126,14 @@ export class UIManager {
     ctx.font = 'bold 12px "Share Tech Mono", monospace';
     ctx.fillText(`${Math.ceil(entities.player.health)}%`, hpBarX + hpBarW + 10, this.height - 20);
 
+    // Player Gold Balance in HUD
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 15px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffea00';
+    ctx.shadowColor = '#ffea00';
+    ctx.shadowBlur = 8;
+    ctx.fillText(`GOLD: ✪ ${shopManager.getGold()}`, this.width / 2, this.height - 20);
+
     const player = entities.player;
     const activeSec = player.activeSecondary;
     const inv = player.inventory[activeSec];
@@ -1032,20 +1185,39 @@ export class UIManager {
     ctx.fillStyle = '#00f0ff';
     ctx.shadowColor = '#00f0ff';
     ctx.shadowBlur = 16;
-    ctx.fillText('MISSION PAUSED', this.width / 2, 170);
+    ctx.fillText('MISSION PAUSED', this.width / 2, 160);
 
-    ctx.font = 'bold 20px "Share Tech Mono", monospace';
+    ctx.font = 'bold 18px "Share Tech Mono", monospace';
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = '#ffffff';
     ctx.shadowBlur = 8;
-    ctx.fillText('[ PRESS ESC / P TO RESUME ]', this.width / 2, 230);
-    ctx.fillText('[ PRESS R TO RESTART MISSION ]', this.width / 2, 270);
-    ctx.fillText('[ PRESS M TO TOGGLE AUDIO MUTE ]', this.width / 2, 310);
+    ctx.fillText('[ PRESS ESC / P TO RESUME ]', this.width / 2, 215);
+    ctx.fillText('[ PRESS R TO RESTART MISSION ]', this.width / 2, 252);
+    ctx.fillText('[ PRESS M TO TOGGLE AUDIO MUTE ]', this.width / 2, 289);
 
-    ctx.font = '15px "Share Tech Mono", monospace';
+    // Hangar / Shop button
+    const pShopX = this.width / 2 - 180;
+    const pShopY = 325;
+    const pShopW = 360;
+    const pShopH = 36;
+    ctx.fillStyle = 'rgba(10, 24, 48, 0.9)';
+    ctx.fillRect(pShopX, pShopY, pShopW, pShopH);
+    ctx.strokeStyle = '#ffea00';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#ffea00';
+    ctx.shadowBlur = 8;
+    ctx.strokeRect(pShopX, pShopY, pShopW, pShopH);
+
+    ctx.font = 'bold 14px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffea00';
+    ctx.shadowColor = '#ffea00';
+    ctx.shadowBlur = 6;
+    ctx.fillText('★ [H] SPACESHIP HANGAR & REQUISITIONS ★', this.width / 2, pShopY + 23);
+
+    ctx.font = '14px "Share Tech Mono", monospace';
     ctx.fillStyle = '#88aacc';
     ctx.shadowBlur = 0;
-    ctx.fillText(`ACTIVE PILOT: [${highScoreManager.getPilotName()}]`, this.width / 2, 370);
+    ctx.fillText(`PILOT: [${highScoreManager.getPilotName()}]  |  CREDITS: ✪ ${shopManager.getGold()}`, this.width / 2, 395);
   }
 
   private drawStageWarpScreen(ctx: CanvasRenderingContext2D, stageId: number = 1): void {
@@ -1174,6 +1346,276 @@ export class UIManager {
       ctx.shadowColor = '#00ff66';
       ctx.shadowBlur = 15;
       ctx.fillText('[ PRESS SPACE OR CLICK TO WARP FORWARD ]', this.width / 2, 400);
+    }
+  }
+
+  /**
+   * Starfleet Requisitions & Spaceship Hangar Interface
+   */
+  private drawShopModal(ctx: CanvasRenderingContext2D): void {
+    ctx.fillStyle = 'rgba(3, 7, 18, 0.94)';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    // Subtle CRT background grid
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.05)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < this.width; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, this.height); ctx.stroke();
+    }
+    for (let y = 0; y < this.height; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(this.width, y); ctx.stroke();
+    }
+
+    const ships = shopManager.getAllShips();
+    const currentGold = shopManager.getGold();
+    const equipped = shopManager.getEquippedShip();
+    const selectedShip = ships[this.selectedShopShipIndex] || ships[0];
+    const isUnlocked = shopManager.isShipUnlocked(selectedShip.id);
+    const isEquipped = equipped.id === selectedShip.id;
+
+    // --- Header ---
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 20px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#00f0ff';
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 10;
+    ctx.fillText('★ STARFLEET HANGAR & REQUISITIONS BAY ★', 35, 45);
+
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 18px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffea00';
+    ctx.shadowColor = '#ffea00';
+    ctx.shadowBlur = 10;
+    ctx.fillText(`FLEET CREDITS: ✪ ${currentGold.toLocaleString()}`, this.width - 35, 45);
+
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(35, 60);
+    ctx.lineTo(this.width - 35, 60);
+    ctx.stroke();
+
+    // --- Left Column: Ship Catalog List (x = 35, w = 330) ---
+    ships.forEach((s, idx) => {
+      const cardY = 80 + idx * 78;
+      const isSelected = idx === this.selectedShopShipIndex;
+      const shipOwned = shopManager.isShipUnlocked(s.id);
+      const shipEq = equipped.id === s.id;
+
+      // Card Background & Border
+      ctx.fillStyle = isSelected ? 'rgba(10, 30, 60, 0.85)' : 'rgba(5, 14, 28, 0.65)';
+      ctx.fillRect(35, cardY, 330, 70);
+
+      ctx.strokeStyle = isSelected ? s.color : shipEq ? '#00ff66' : 'rgba(0, 240, 255, 0.3)';
+      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.shadowColor = isSelected ? s.color : 'transparent';
+      ctx.shadowBlur = isSelected ? 8 : 0;
+      ctx.strokeRect(35, cardY, 330, 70);
+
+      // Ship Name
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 14px "Share Tech Mono", monospace';
+      ctx.fillStyle = isSelected ? '#ffffff' : '#d0e8ff';
+      ctx.fillText(s.name, 48, cardY + 25);
+
+      // Franchise
+      ctx.font = '11px "Share Tech Mono", monospace';
+      ctx.fillStyle = s.color;
+      ctx.fillText(s.franchise, 48, cardY + 44);
+
+      // Price / Owned Badge
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 13px "Share Tech Mono", monospace';
+      if (shipEq) {
+        ctx.fillStyle = '#00ff66';
+        ctx.shadowColor = '#00ff66';
+        ctx.shadowBlur = 6;
+        ctx.fillText('[ EQUIPPED ]', 350, cardY + 38);
+      } else if (shipOwned) {
+        ctx.fillStyle = '#00f0ff';
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 4;
+        ctx.fillText('[ OWNED ]', 350, cardY + 38);
+      } else {
+        ctx.fillStyle = currentGold >= s.price ? '#ffea00' : '#ff4444';
+        ctx.shadowColor = currentGold >= s.price ? '#ffea00' : '#ff4444';
+        ctx.shadowBlur = 6;
+        ctx.fillText(`✪ ${s.price.toLocaleString()}`, 350, cardY + 38);
+      }
+    });
+
+    // Return button at bottom left
+    const retX = 35;
+    const retY = 485;
+    ctx.fillStyle = 'rgba(10, 25, 45, 0.85)';
+    ctx.fillRect(retX, retY, 180, 36);
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(retX, retY, 180, 36);
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 13px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('◄ RETURN [ESC]', retX + 90, retY + 23);
+
+    // --- Right Column: Vessel Docking Bay & Hologram Telemetry (x = 385, w = 540) ---
+    const panelX = 385;
+    const panelY = 80;
+    const panelW = 540;
+    const panelH = 440;
+
+    ctx.fillStyle = 'rgba(4, 10, 24, 0.8)';
+    ctx.fillRect(panelX, panelY, panelW, panelH);
+    ctx.strokeStyle = selectedShip.color;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = selectedShip.color;
+    ctx.shadowBlur = 10;
+    ctx.strokeRect(panelX, panelY, panelW, panelH);
+
+    // Docking Bay Holographic Cradle (cx = 655, cy = 165)
+    const dockCx = panelX + panelW / 2;
+    const dockCy = 170;
+
+    // Platform rings
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(dockCx, dockCy + 35, 110, 25, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = selectedShip.color;
+    ctx.beginPath();
+    ctx.ellipse(dockCx, dockCy + 35, 75, 16, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Holographic Vertical Scan Beam
+    const holoGrad = ctx.createLinearGradient(0, dockCy - 70, 0, dockCy + 35);
+    holoGrad.addColorStop(0, 'rgba(0, 240, 255, 0.0)');
+    holoGrad.addColorStop(0.7, 'rgba(0, 240, 255, 0.08)');
+    holoGrad.addColorStop(1, 'rgba(0, 240, 255, 0.25)');
+    ctx.fillStyle = holoGrad;
+    ctx.beginPath();
+    ctx.moveTo(dockCx - 80, dockCy + 35);
+    ctx.lineTo(dockCx - 50, dockCy - 60);
+    ctx.lineTo(dockCx + 50, dockCy - 60);
+    ctx.lineTo(dockCx + 80, dockCy + 35);
+    ctx.closePath();
+    ctx.fill();
+
+    // 3D Rotating Starfighter Projection
+    this.drawWireframeShip(ctx, dockCx, dockCy, 2.5, this.time * 1.8, 0.22);
+
+    // Selected Vessel Specs & Lore
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 20px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = selectedShip.color;
+    ctx.shadowBlur = 10;
+    ctx.fillText(selectedShip.name, panelX + 25, 235);
+
+    ctx.font = 'bold 12px "Share Tech Mono", monospace';
+    ctx.fillStyle = selectedShip.color;
+    ctx.fillText(`// CLASSIFICATION: ${selectedShip.franchise} //`, panelX + 25, 255);
+
+    ctx.font = '13px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#99ccee';
+    ctx.shadowBlur = 0;
+    ctx.fillText(selectedShip.description, panelX + 25, 278);
+
+    // Spec Bars
+    const barX = panelX + 160;
+    const barW = 200;
+    const barH = 10;
+
+    // 1. Velocity / Speed
+    const spdRatio = Math.min(1.0, selectedShip.speed / 450);
+    ctx.font = 'bold 12px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#88ccff';
+    ctx.fillText('CRUISE SPEED:', panelX + 25, 310);
+    ctx.strokeStyle = '#00f0ff';
+    ctx.strokeRect(barX, 301, barW, barH);
+    ctx.fillStyle = '#00f0ff';
+    ctx.fillRect(barX + 2, 303, (barW - 4) * spdRatio, barH - 4);
+    ctx.fillText(`${selectedShip.speed} PX/S`, barX + barW + 12, 310);
+
+    // 2. Hull Durability
+    const hpRatio = Math.min(1.0, selectedShip.maxHealth / 200);
+    ctx.fillStyle = '#88ccff';
+    ctx.fillText('HULL ARMOR:', panelX + 25, 332);
+    ctx.strokeStyle = '#00ff66';
+    ctx.strokeRect(barX, 323, barW, barH);
+    ctx.fillStyle = '#00ff66';
+    ctx.fillRect(barX + 2, 325, (barW - 4) * hpRatio, barH - 4);
+    ctx.fillText(`${selectedShip.maxHealth} HP`, barX + barW + 12, 332);
+
+    // 3. Fire Rate
+    const fireRoundsSec = (1 / selectedShip.fireRate).toFixed(1);
+    const frRatio = Math.min(1.0, (1 / selectedShip.fireRate) / 14);
+    ctx.fillStyle = '#88ccff';
+    ctx.fillText('FIRE RATE:', panelX + 25, 354);
+    ctx.strokeStyle = '#ffea00';
+    ctx.strokeRect(barX, 345, barW, barH);
+    ctx.fillStyle = '#ffea00';
+    ctx.fillRect(barX + 2, 347, (barW - 4) * frRatio, barH - 4);
+    ctx.fillText(`${fireRoundsSec} SHOTS/S`, barX + barW + 12, 354);
+
+    // Weapon & Trait
+    ctx.font = 'bold 12px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffaa00';
+    ctx.fillText(`PRIMARY WEAPON: ${selectedShip.primaryWeaponName}`, panelX + 25, 386);
+
+    ctx.font = 'bold 12px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#00ffcc';
+    ctx.fillText(`SPECIAL TRAIT: ${selectedShip.specialTrait}`, panelX + 25, 410);
+
+    // --- Action Button: Requisition / Equip ---
+    const actBtnX = 440;
+    const actBtnY = 440;
+    const actBtnW = 430;
+    const actBtnH = 46;
+
+    if (isEquipped) {
+      ctx.fillStyle = 'rgba(0, 255, 102, 0.15)';
+      ctx.fillRect(actBtnX, actBtnY, actBtnW, actBtnH);
+      ctx.strokeStyle = '#00ff66';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(actBtnX, actBtnY, actBtnW, actBtnH);
+
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 16px "Share Tech Mono", monospace';
+      ctx.fillStyle = '#00ff66';
+      ctx.shadowColor = '#00ff66';
+      ctx.shadowBlur = 8;
+      ctx.fillText('✓ CURRENTLY EQUIPPED IN COMBAT', actBtnX + actBtnW / 2, actBtnY + 29);
+    } else if (isUnlocked) {
+      const pulse = Math.sin(this.time * 6) > 0;
+      ctx.fillStyle = 'rgba(0, 240, 255, 0.2)';
+      ctx.fillRect(actBtnX, actBtnY, actBtnW, actBtnH);
+      ctx.strokeStyle = pulse ? '#ffffff' : '#00f0ff';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 10;
+      ctx.strokeRect(actBtnX, actBtnY, actBtnW, actBtnH);
+
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 16px "Share Tech Mono", monospace';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('[ CLICK TO EQUIP THIS VESSEL ]', actBtnX + actBtnW / 2, actBtnY + 29);
+    } else {
+      const canAfford = currentGold >= selectedShip.price;
+      ctx.fillStyle = canAfford ? 'rgba(255, 234, 0, 0.18)' : 'rgba(255, 51, 68, 0.18)';
+      ctx.fillRect(actBtnX, actBtnY, actBtnW, actBtnH);
+      ctx.strokeStyle = canAfford ? '#ffea00' : '#ff3344';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = canAfford ? '#ffea00' : '#ff3344';
+      ctx.shadowBlur = 10;
+      ctx.strokeRect(actBtnX, actBtnY, actBtnW, actBtnH);
+
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 15px "Share Tech Mono", monospace';
+      ctx.fillStyle = canAfford ? '#ffea00' : '#ff4444';
+      const buyText = canAfford
+        ? `[ REQUISITION VESSEL FOR ✪ ${selectedShip.price.toLocaleString()} GOLD ]`
+        : `[ INSUFFICIENT CREDITS (NEED ✪ ${selectedShip.price.toLocaleString()} GOLD) ]`;
+      ctx.fillText(buyText, actBtnX + actBtnW / 2, actBtnY + 29);
     }
   }
 }

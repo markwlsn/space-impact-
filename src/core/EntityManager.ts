@@ -13,6 +13,7 @@ import { ParticleSystem } from '../graphics/ParticleSystem';
 import { CameraShake } from '../graphics/CameraShake';
 import { Renderer } from '../graphics/Renderer';
 import { soundSynthesizer } from '../audio/SoundSynthesizer';
+import { shopManager } from '../ui/ShopManager';
 
 export class EntityManager {
   public player: PlayerShip;
@@ -295,6 +296,10 @@ export class EntityManager {
         } else if (pickup.type === 'REPAIR') {
           this.player.heal(25);
           particleSystem.emitFloatingText(pickup.position.x, pickup.position.y - 15, '+25 HULL REPAIR', '#00ff66');
+        } else if (pickup.type === 'GOLD_COIN') {
+          shopManager.addGold(25);
+          soundSynthesizer.playCoinInsert();
+          particleSystem.emitFloatingText(pickup.position.x, pickup.position.y - 15, '+25 GOLD ✪', '#ffea00');
         }
       }
     }
@@ -306,7 +311,9 @@ export class EntityManager {
     cameraShake: CameraShake,
     renderer: Renderer
   ): void {
-    const tookDamage = this.player.takeDamage(amount);
+    // Millennium Falcon passive: 25% collision & incoming damage reduction
+    const effectiveDamage = this.player.shipId === 'MILLENNIUM_FALCON' ? Math.max(1, Math.round(amount * 0.75)) : amount;
+    const tookDamage = this.player.takeDamage(effectiveDamage);
     if (!tookDamage) return;
 
     // Trigger visual and auditory feedback (FR-5, FR-10)
@@ -355,6 +362,11 @@ export class EntityManager {
       enemy.isElite ? '#ffea00' : '#00f0ff'
     );
 
+    // Drop gold coins (45% regular, 100% elite)
+    if (enemy.isElite || Math.random() < 0.45) {
+      this.spawnPickup(enemy.position.x, enemy.position.y, 'GOLD_COIN');
+    }
+
     // Drop capsule if elite or lucky roll (FR-8)
     if (enemy.isElite || Math.random() < 0.12) {
       const dropTypes: PickupType[] = [
@@ -376,6 +388,9 @@ export class EntityManager {
     const bossScore = Math.floor(10000 * this.comboMultiplier);
     this.score += bossScore;
 
+    // Massive gold reward for boss takedown
+    shopManager.addGold(500);
+
     soundSynthesizer.playExplosion(3.5);
     cameraShake.addTrauma(1.0);
     particleSystem.emitExplosion(boss.position.x, boss.position.y, 4.0, '#ffea00');
@@ -384,6 +399,12 @@ export class EntityManager {
       boss.position.y - 40,
       `BOSS DESTROYED! +${bossScore}`,
       '#ffff00'
+    );
+    particleSystem.emitFloatingText(
+      boss.position.x,
+      boss.position.y - 65,
+      '+500 GOLD ✪',
+      '#ffea00'
     );
   }
 

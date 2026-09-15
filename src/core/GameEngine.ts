@@ -12,6 +12,8 @@ import { BossMollusk } from '../entities/BossMollusk';
 import { BossSentinel } from '../entities/BossSentinel';
 import { highScoreManager } from '../ui/HighScoreManager';
 
+import { shopManager } from '../ui/ShopManager';
+
 export class GameEngine {
   public readonly canvas: HTMLCanvasElement;
   private renderer: Renderer;
@@ -23,6 +25,7 @@ export class GameEngine {
   private ui: UIManager;
 
   private state: GameState = 'CINEMATIC_INTRO';
+  private previousState: GameState = 'TITLE';
   private stageId: StageId = 1;
   private stageTimeline: number = 0;
   private readonly stageLength: number = 36.0; // Seconds before boss spawns
@@ -71,6 +74,14 @@ export class GameEngine {
       onToggleTouch: () => this.input.toggleTouchControls(),
       onSkipIntro: () => this.skipIntro(),
       onConfirmPilot: (callsign: string) => this.onConfirmPilot(callsign),
+      onOpenShop: () => {
+        this.previousState = this.state;
+        this.state = 'SHOP';
+      },
+      onCloseShop: () => {
+        this.state = this.previousState === 'PAUSED' ? 'PAUSED' : 'TITLE';
+        this.entities.player.applyShip(shopManager.getEquippedShip());
+      },
     });
 
     // Window focus/blur protection
@@ -105,6 +116,7 @@ export class GameEngine {
     this.bossSpawned = false;
     this.previousRank = 8;
     this.entities.resetAll();
+    this.entities.player.applyShip(shopManager.getEquippedShip());
     this.particleSystem.clear();
     this.starfield.setBiome('SPACE');
     this.starfield.setWarpSpeed(false);

@@ -12,16 +12,51 @@ export interface BoundingBox {
 
 export type SecondaryWeaponType = 'MEGABOMB' | 'BEAM_LASER' | 'HOMING_MISSILE';
 
-export type PickupType = 'WEAPON_MEGABOMB' | 'WEAPON_BEAM' | 'WEAPON_HOMING' | 'REPAIR';
+export type PickupType = 'WEAPON_MEGABOMB' | 'WEAPON_BEAM' | 'WEAPON_HOMING' | 'REPAIR' | 'GOLD_COIN';
 
 export type EnemyType = 'SCOUT' | 'SWARMER' | 'BEETLE' | 'TENTACLE' | 'LASER_GATE' | 'FORTRESS_TURRET';
 
 export type ProjectileOwner = 'PLAYER' | 'ENEMY';
 
+export type ProjectileKind =
+  | 'PLASMA'
+  | 'ENEMY_BULLET'
+  | 'MEGABOMB'
+  | 'BEAM_LASER'
+  | 'HOMING_MISSILE'
+  | 'QUAD_LASER'
+  | 'TURRET_SPREAD'
+  | 'PHASER_BEAM'
+  | 'PHOTON_TORPEDO'
+  | 'EMERALD_LASER';
+
+export type ShipId =
+  | 'NOKIA_VIPER'
+  | 'X_WING'
+  | 'MILLENNIUM_FALCON'
+  | 'USS_ENTERPRISE'
+  | 'TIE_PHANTOM';
+
+export interface ShipDefinition {
+  id: ShipId;
+  name: string;
+  franchise: string;
+  price: number;
+  description: string;
+  speed: number;
+  maxHealth: number;
+  fireRate: number; // Cooldown in seconds between primary shots
+  primaryWeaponName: string;
+  specialTrait: string;
+  color: string;
+  accentColor: string;
+}
+
 export type GameState =
   | 'CINEMATIC_INTRO'
   | 'PILOT_ENTRY'
   | 'TITLE'
+  | 'SHOP'
   | 'PLAYING'
   | 'PAUSED'
   | 'STAGE_WARP'
