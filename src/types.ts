@@ -19,6 +19,8 @@ export type EnemyType = 'SCOUT' | 'SWARMER' | 'BEETLE' | 'TENTACLE' | 'LASER_GAT
 export type ProjectileOwner = 'PLAYER' | 'ENEMY';
 
 export type GameState =
+  | 'CINEMATIC_INTRO'
+  | 'PILOT_ENTRY'
   | 'TITLE'
   | 'PLAYING'
   | 'PAUSED'
@@ -27,7 +29,7 @@ export type GameState =
   | 'VICTORY'
   | 'ENTER_HIGHSCORE';
 
-export type StageId = 1 | 2;
+export type StageId = number;
 
 export interface Entity {
   id: string;
