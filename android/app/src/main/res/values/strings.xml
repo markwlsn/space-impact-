@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Space Impact Remaster</string>
+    <string name="title_activity_main">Space Impact Remaster</string>
+    <string name="package_name">com.markwlsn.spaceimpact</string>
+    <string name="custom_url_scheme">com.markwlsn.spaceimpact</string>
+</resources>

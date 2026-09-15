@@ -1,4 +1,6 @@
 import { HighScoreRecord } from '../types';
+import { databaseService, CloudScoreRecord } from '../services/DatabaseService';
+import { shopManager } from './ShopManager';
 
 const STORAGE_KEY = 'space_impact_highscores_v2';
 const PILOT_STORAGE_KEY = 'space_impact_pilot_callsign_v1';
@@ -10,6 +12,7 @@ export class HighScoreManager {
   constructor() {
     this.loadPilotName();
     this.loadScores();
+    this.initRealtimeSync();
   }
 
   public getHighScores(): HighScoreRecord[] {
@@ -151,11 +154,55 @@ export class HighScoreManager {
       date: new Date().toISOString().split('T')[0],
     };
 
-    this.highScores.push(newRecord);
-    this.highScores.sort((a, b) => b.score - a.score);
-    this.highScores = this.highScores.slice(0, 8); // Keep top 8 arcade placement
+    this.mergeScore(newRecord);
 
-    this.saveScores();
+    // Broadcast to Supabase Realtime cloud database in background
+    const equippedShip = shopManager.getEquippedShip();
+    databaseService
+      .submitScore(cleanInitials, score, stage, equippedShip.id)
+      .catch((err) => console.warn('[HighScoreManager] Failed to submit score to cloud:', err));
+  }
+
+  private mergeScore(record: HighScoreRecord): void {
+    // Avoid exact duplicate inserts
+    const exists = this.highScores.some(
+      (h) => h.initials === record.initials && h.score === record.score && h.stage === record.stage
+    );
+    if (!exists) {
+      this.highScores.push(record);
+      this.highScores.sort((a, b) => b.score - a.score);
+      this.highScores = this.highScores.slice(0, 8); // Keep top 8 arcade placement
+      this.saveScores();
+    }
+  }
+
+  private async initRealtimeSync(): Promise<void> {
+    // 1. Fetch initial top scores from cloud
+    try {
+      const cloudScores = await databaseService.fetchTopScores(8);
+      if (cloudScores && cloudScores.length > 0) {
+        cloudScores.forEach((cs: CloudScoreRecord) => {
+          this.mergeScore({
+            initials: cs.pilot_name,
+            score: cs.score,
+            stage: cs.stage,
+            date: cs.created_at ? cs.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+          });
+        });
+      }
+    } catch (e) {
+      console.warn('[HighScoreManager] Initial cloud sync failed:', e);
+    }
+
+    // 2. Listen to real-time incoming scores from other players
+    databaseService.onNewScore((cs: CloudScoreRecord) => {
+      this.mergeScore({
+        initials: cs.pilot_name,
+        score: cs.score,
+        stage: cs.stage,
+        date: cs.created_at ? cs.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+      });
+    });
   }
 
   private loadPilotName(): void {

@@ -1,0 +1,17 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.markwlsn.spaceimpact',
+  appName: 'Space Impact Remaster',
+  webDir: 'dist',
+  server: {
+    androidScheme: 'https'
+  },
+  android: {
+    backgroundColor: '#030712',
+    allowMixedContent: true,
+    captureInput: true
+  }
+};
+
+export default config;
