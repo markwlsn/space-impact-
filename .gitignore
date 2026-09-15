@@ -30,6 +30,8 @@ android/app/build
 android/.idea
 *.apk
 *.aab
+*.zip
+release-apk/
 
 # Local Environment Variables
 .env
