@@ -19,6 +19,15 @@ export interface NebulaCloud {
   speed: number;
 }
 
+export interface NokiaBuilding {
+  x: number;
+  width: number;
+  height: number;
+  type: 'SLOPED_LEFT' | 'SLOPED_RIGHT' | 'DOME' | 'STEPPED' | 'ANTENNA_TOWER';
+  windowCols: number;
+  windowRows: number;
+}
+
 export interface CyberPillar {
   x: number;
   y: number;
@@ -32,8 +41,8 @@ export class StarfieldManager {
   private width: number = 960;
   private height: number = 540;
 
-  // Biome: 'SPACE' (Stage 1) or 'CYBER_FORTRESS' (Stage 2)
-  private biome: 'SPACE' | 'CYBER_FORTRESS' = 'SPACE';
+  // Biome: 'SPACE', 'CYBER_FORTRESS', or 'NOKIA_CITY' (authentic Nokia 3310 Level 1)
+  private biome: 'SPACE' | 'CYBER_FORTRESS' | 'NOKIA_CITY' = 'NOKIA_CITY';
   private isWarping: boolean = false;
   private warpFactor: number = 1.0;
 
@@ -47,14 +56,18 @@ export class StarfieldManager {
   private cyberPillars: CyberPillar[] = [];
   private gridOffset: number = 0;
 
+  // Nokia 3310 City Skyline:
+  private nokiaBuildings: NokiaBuilding[] = [];
+
   constructor(width: number = 960, height: number = 540) {
     this.width = width;
     this.height = height;
     this.initSpaceBiome();
     this.initCyberFortressBiome();
+    this.initNokiaCityBiome();
   }
 
-  public setBiome(biome: 'SPACE' | 'CYBER_FORTRESS'): void {
+  public setBiome(biome: 'SPACE' | 'CYBER_FORTRESS' | 'NOKIA_CITY'): void {
     this.biome = biome;
   }
 
@@ -133,6 +146,42 @@ export class StarfieldManager {
     }
   }
 
+  private initNokiaCityBiome(): void {
+    let currentX = 5;
+    const pattern: ('SLOPED_RIGHT' | 'DOME' | 'STEPPED' | 'SLOPED_LEFT' | 'ANTENNA_TOWER')[] = [
+      'SLOPED_RIGHT',
+      'STEPPED',
+      'DOME',
+      'ANTENNA_TOWER',
+      'SLOPED_LEFT',
+      'STEPPED',
+      'SLOPED_RIGHT',
+      'DOME',
+      'ANTENNA_TOWER',
+      'SLOPED_LEFT',
+      'STEPPED',
+      'DOME',
+      'ANTENNA_TOWER',
+      'SLOPED_RIGHT',
+      'STEPPED',
+    ];
+
+    for (let i = 0; i < pattern.length; i++) {
+      const type = pattern[i];
+      const width = type === 'DOME' ? 44 : type.startsWith('SLOPED') ? 48 : 40;
+      const height = type.startsWith('SLOPED') ? 105 + (i % 3) * 16 : type === 'DOME' ? 52 : 60 + (i % 4) * 14;
+      this.nokiaBuildings.push({
+        x: currentX,
+        width,
+        height,
+        type,
+        windowCols: 2,
+        windowRows: 4,
+      });
+      currentX += width + 14 + (i % 3) * 8;
+    }
+  }
+
   public update(dt: number): void {
     // Warp speed acceleration
     if (this.isWarping) {
@@ -175,18 +224,174 @@ export class StarfieldManager {
         pillar.x = this.width + Math.random() * 80;
       }
     });
+
+    // Update Nokia City scrolling
+    if (this.biome === 'NOKIA_CITY') {
+      const nokiaSpeed = 38 * currentMultiplier * dt;
+      let maxX = 0;
+      this.nokiaBuildings.forEach((b) => {
+        if (b.x > maxX) maxX = b.x;
+      });
+
+      this.nokiaBuildings.forEach((b) => {
+        b.x -= nokiaSpeed;
+        if (b.x + b.width < 0) {
+          b.x = maxX + 14;
+          maxX = b.x;
+        }
+      });
+    }
   }
 
   public draw(ctx: CanvasRenderingContext2D): void {
     ctx.save();
 
-    if (this.biome === 'SPACE') {
+    if (this.biome === 'NOKIA_CITY') {
+      this.drawNokiaCityBiome(ctx);
+    } else if (this.biome === 'SPACE') {
       this.drawSpaceBiome(ctx);
     } else {
       this.drawCyberFortressBiome(ctx);
     }
 
     ctx.restore();
+  }
+
+  private drawNokiaCityBiome(ctx: CanvasRenderingContext2D): void {
+    // Clear background with pure black: SVG filter maps black directly to the Nokia 3310 olive LCD (#706619)
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    // Draw sparse Nokia 3310 pixel stars (2x2 pixel blocks, drawn in white so filter maps them to black ink specks)
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 30; i++) {
+      const sx = (i * 73 + this.gridOffset * 0.4) % this.width;
+      const sy = (i * 37) % 350;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 2, 2);
+    }
+
+    // Ground baseline (at Y = height - 12)
+    const groundY = this.height - 12;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, groundY);
+    ctx.lineTo(this.width, groundY);
+    ctx.stroke();
+
+    // Ground lower texture line
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, groundY + 5);
+    ctx.lineTo(this.width, groundY + 5);
+    ctx.stroke();
+
+    // Draw Nokia city skyline buildings
+    this.nokiaBuildings.forEach((b) => {
+      const bx = Math.floor(b.x);
+      const by = groundY - b.height;
+      const bw = b.width;
+      const bh = b.height;
+
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+
+      if (b.type === 'SLOPED_RIGHT') {
+        // Tall skyscraper with sloped roof to right (matches left building in reference photo)
+        ctx.beginPath();
+        ctx.moveTo(bx, groundY);
+        ctx.lineTo(bx, by + 18);
+        ctx.lineTo(bx + bw * 0.4, by);
+        ctx.lineTo(bx + bw, by + 28);
+        ctx.lineTo(bx + bw, groundY);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Window column dots
+        const rows = Math.floor((bh - 35) / 14);
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < 2; c++) {
+            const wx = bx + 7 + c * (bw - 18);
+            const wy = by + 35 + r * 14;
+            ctx.fillRect(wx, wy, 3, 3);
+          }
+        }
+      } else if (b.type === 'SLOPED_LEFT') {
+        // Tall skyscraper with sloped roof to left (matches right building in reference photo)
+        ctx.beginPath();
+        ctx.moveTo(bx, groundY);
+        ctx.lineTo(bx, by + 28);
+        ctx.lineTo(bx + bw * 0.6, by);
+        ctx.lineTo(bx + bw, by + 18);
+        ctx.lineTo(bx + bw, groundY);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Window column dots
+        const rows = Math.floor((bh - 35) / 14);
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < 2; c++) {
+            const wx = bx + 7 + c * (bw - 18);
+            const wy = by + 35 + r * 14;
+            ctx.fillRect(wx, wy, 3, 3);
+          }
+        }
+      } else if (b.type === 'DOME') {
+        // Dome building (matches middle building in reference photo)
+        ctx.beginPath();
+        ctx.moveTo(bx, groundY);
+        ctx.lineTo(bx, by + 16);
+        ctx.arc(bx + bw / 2, by + 16, bw / 2, Math.PI, 0);
+        ctx.lineTo(bx + bw, groundY);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Spire on top of dome
+        ctx.beginPath();
+        ctx.moveTo(bx + bw / 2, by - 8);
+        ctx.lineTo(bx + bw / 2, by + 16 - bw / 2);
+        ctx.stroke();
+
+        // Dome arched interior portal
+        ctx.strokeRect(bx + bw / 2 - 4, by + 22, 8, 12);
+      } else if (b.type === 'ANTENNA_TOWER') {
+        // Stepped building with antenna spire
+        ctx.strokeRect(bx, by + 16, bw, bh - 16);
+        const midX = bx + bw / 2;
+        ctx.beginPath();
+        ctx.moveTo(midX, by - 12);
+        ctx.lineTo(midX, by + 16);
+        ctx.moveTo(midX - 6, by - 4);
+        ctx.lineTo(midX + 6, by - 4);
+        ctx.moveTo(midX - 10, by + 4);
+        ctx.lineTo(midX + 10, by + 4);
+        ctx.stroke();
+
+        // Windows
+        const rows = Math.floor((bh - 28) / 12);
+        for (let r = 0; r < rows; r++) {
+          ctx.fillRect(midX - 5, by + 22 + r * 12, 3, 3);
+          ctx.fillRect(midX + 2, by + 22 + r * 12, 3, 3);
+        }
+      } else {
+        // Stepped block / tiered building
+        ctx.strokeRect(bx, by + 12, bw, bh - 12);
+        ctx.strokeRect(bx + 6, by, bw - 12, 12);
+
+        // Windows
+        const cols = Math.max(1, Math.floor((bw - 12) / 10));
+        const rows = Math.max(1, Math.floor((bh - 24) / 12));
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            ctx.fillRect(bx + 7 + c * 10, by + 18 + r * 12, 3, 3);
+          }
+        }
+      }
+
+      ctx.restore();
+    });
   }
 
   private drawSpaceBiome(ctx: CanvasRenderingContext2D): void {

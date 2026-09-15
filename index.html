@@ -437,14 +437,32 @@
       }
 
       /* =========================================================
-         NOSTALGIC RETRO SCREEN FILTERS (NOKIA GREEN, BLUE, DMG, AMBER)
+         AUTHENTIC NOKIA 3310 MONOCHROME LCD DISPLAY & RETRO FILTERS
          ========================================================= */
-      /* 1. NOKIA 3310 CLASSIC GREEN SCREEN */
+      /* 1. NOKIA 3310 AUTHENTIC MONOCHROME LCD SCREEN (Matches reference photo) */
       body.filter-nokia-classic #gameContainer {
-        background: #9bbc0f !important;
+        background: #706619 !important;
+        position: relative;
+        padding: 10px;
+        box-sizing: border-box;
       }
+
       body.filter-nokia-classic canvas#gameCanvas {
-        filter: sepia(100%) hue-rotate(50deg) saturate(320%) contrast(170%) brightness(88%);
+        filter: url(#nokia-3310-filter);
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        border-radius: 20px;
+        border: 7px solid #141820;
+        outline: 10px solid #4a5768;
+        box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 0, 0, 0.85);
+        transition: border 0.3s ease, border-radius 0.3s ease;
+      }
+
+      /* Authentic physical LCD pixel dot matrix pattern */
+      body.filter-nokia-classic #crt-overlay {
+        background: radial-gradient(circle at center, rgba(16, 20, 8, 0.22) 1px, transparent 1px);
+        background-size: 3px 3px;
+        opacity: 0.8;
       }
 
       /* 2. NOKIA BLUE 3330 / 8210 */
@@ -474,6 +492,10 @@
       /* 5. MODERN OLED */
       body.filter-modern-oled canvas#gameCanvas {
         filter: none;
+        border-radius: 0;
+        border: none;
+        outline: none;
+        box-shadow: none;
       }
 
       footer {
@@ -680,6 +702,37 @@
         <button id="dismissOrientationBtn" class="btn">Continue Anyway</button>
       </div>
     </div>
+
+    <!-- Authentic Nokia 3310 Monochrome STN LCD Shader Filter (Exact match to reference photo) -->
+    <svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;" aria-hidden="true">
+      <filter id="nokia-3310-filter" color-interpolation-filters="sRGB">
+        <!-- 1. Extract Grayscale Luminance: Y = 0.299*R + 0.587*G + 0.114*B -->
+        <feColorMatrix type="matrix" values="
+          0.299  0.587  0.114  0  0
+          0.299  0.587  0.114  0  0
+          0.299  0.587  0.114  0  0
+          0      0      0      1  0
+        " result="gray" />
+
+        <!-- 2. Steepen contrast curve for authentic 1-bit pixel LCD threshold -->
+        <feComponentTransfer in="gray" result="crisp">
+          <feFuncR type="linear" slope="2.6" intercept="-0.12" />
+          <feFuncG type="linear" slope="2.6" intercept="-0.12" />
+          <feFuncB type="linear" slope="2.6" intercept="-0.12" />
+        </feComponentTransfer>
+
+        <!-- 3. Exact Color Matrix Mapping:
+             Luminance 0.0 (dark canvas / space) -> LCD Olive Yellow (R: 0.44=112, G: 0.40=102, B: 0.10=26 -> #70661a)
+             Luminance 1.0 (bright sprites / bullets) -> Dark LCD Ink (R: 0.04=10, G: 0.05=13, B: 0.03=8 -> #0a0d08)
+        -->
+        <feColorMatrix in="crisp" type="matrix" values="
+          -0.40  0      0      0  0.44
+          0      -0.35  0      0  0.40
+          0      0      -0.07  0  0.10
+          0      0      0      1  0
+        " />
+      </filter>
+    </svg>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

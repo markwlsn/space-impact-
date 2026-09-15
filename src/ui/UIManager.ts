@@ -1,9 +1,8 @@
-import { GameState, StageId, ControllerSkin, ScreenFilter } from '../types';
+import { GameState, StageId, ControllerSkin } from '../types';
 import { EntityManager } from '../core/EntityManager';
 import { highScoreManager } from './HighScoreManager';
 import { soundSynthesizer } from '../audio/SoundSynthesizer';
 import { shopManager } from './ShopManager';
-import { filterManager } from '../graphics/FilterManager';
 import { InputHandler } from '../core/InputHandler';
 
 export interface UIActionCallbacks {
@@ -253,29 +252,23 @@ export class UIManager {
         this.callbacks?.onStartGame();
         return;
       }
-      // 2. Starfighter Hangar [x: 260-700, y: 250-288]
-      if (x >= 260 && x <= 700 && y >= 250 && y <= 288) {
+      // 2. Starfighter Hangar [x: 260-700, y: 250-292]
+      if (x >= 260 && x <= 700 && y >= 250 && y <= 292) {
         this.openShop();
         return;
       }
-      // 3. Controller & Settings [x: 260-700, y: 294-332]
-      if (x >= 260 && x <= 700 && y >= 294 && y <= 332) {
+      // 3. Controller & Settings [x: 260-700, y: 298-340]
+      if (x >= 260 && x <= 700 && y >= 298 && y <= 340) {
         this.openSettings();
         return;
       }
-      // 4. Retro Filter Cycle [x: 260-700, y: 338-376]
-      if (x >= 260 && x <= 700 && y >= 338 && y <= 376) {
-        filterManager.cycleFilter();
-        soundSynthesizer.playUiBeep();
-        return;
-      }
-      // 5. Global Hall of Fame [x: 260-700, y: 382-420]
-      if (x >= 260 && x <= 700 && y >= 382 && y <= 420) {
+      // 4. Global Hall of Fame [x: 260-700, y: 346-388]
+      if (x >= 260 && x <= 700 && y >= 346 && y <= 388) {
         this.toggleLeaderboard();
         return;
       }
-      // 6. Pilot Callsign [x: 260-700, y: 426-464]
-      if (x >= 260 && x <= 700 && y >= 426 && y <= 464) {
+      // 5. Pilot Callsign [x: 260-700, y: 394-436]
+      if (x >= 260 && x <= 700 && y >= 394 && y <= 436) {
         this.previousState = 'MAIN_MENU';
         this.currentState = 'PILOT_ENTRY';
         soundSynthesizer.playUiBeep();
@@ -1016,82 +1009,55 @@ export class UIManager {
 
     // 2. STARFIGHTER HANGAR / SHOP
     ctx.fillStyle = 'rgba(10, 24, 48, 0.85)';
-    ctx.fillRect(btnX, 248, btnW, 36);
+    ctx.fillRect(btnX, 252, btnW, 38);
     ctx.strokeStyle = '#ffea00';
     ctx.lineWidth = 1.5;
     ctx.shadowColor = '#ffea00';
     ctx.shadowBlur = 6;
-    ctx.strokeRect(btnX, 248, btnW, 36);
+    ctx.strokeRect(btnX, 252, btnW, 38);
 
     ctx.font = 'bold 14px "Share Tech Mono", monospace';
     ctx.fillStyle = '#ffea00';
-    ctx.fillText('✈ 2. FLEET HANGAR & WEAPONS SHOP [H]', this.width / 2, 271);
+    ctx.fillText('✈ 2. FLEET HANGAR & WEAPONS SHOP [H]', this.width / 2, 276);
 
     // 3. CONTROLLER & SETTINGS
     ctx.fillStyle = 'rgba(10, 24, 48, 0.85)';
-    ctx.fillRect(btnX, 292, btnW, 36);
+    ctx.fillRect(btnX, 300, btnW, 38);
     ctx.strokeStyle = '#00f0ff';
     ctx.lineWidth = 1.5;
     ctx.shadowColor = '#00f0ff';
     ctx.shadowBlur = 6;
-    ctx.strokeRect(btnX, 292, btnW, 36);
+    ctx.strokeRect(btnX, 300, btnW, 38);
 
     ctx.font = 'bold 14px "Share Tech Mono", monospace';
     ctx.fillStyle = '#00f0ff';
-    ctx.fillText('⚙ 3. CONTROLLER & CUSTOM CONTROLS SETTINGS', this.width / 2, 315);
+    ctx.fillText('⚙ 3. CONTROLLER & CUSTOM CONTROLS SETTINGS', this.width / 2, 324);
 
-    // 4. NOSTALGIC SCREEN FILTER
-    const activeFilter = filterManager.getActiveLevelFilter();
-    const filterName =
-      activeFilter === 'NOKIA_CLASSIC'
-        ? 'NOKIA 3310 GREEN'
-        : activeFilter === 'NOKIA_BLUE'
-        ? 'NOKIA BLUE 3330'
-        : activeFilter === 'GAMEBOY_DMG'
-        ? 'GAME BOY DMG'
-        : activeFilter === 'CYBER_AMBER'
-        ? 'CYBER AMBER'
-        : activeFilter === 'MODERN_OLED'
-        ? 'MODERN OLED'
-        : 'RANDOM PER LEVEL';
-
+    // 4. GLOBAL HALL OF FAME
     ctx.fillStyle = 'rgba(10, 24, 48, 0.85)';
-    ctx.fillRect(btnX, 336, btnW, 36);
-    ctx.strokeStyle = '#00ffaa';
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = '#00ffaa';
-    ctx.shadowBlur = 6;
-    ctx.strokeRect(btnX, 336, btnW, 36);
-
-    ctx.font = 'bold 14px "Share Tech Mono", monospace';
-    ctx.fillStyle = '#00ffaa';
-    ctx.fillText(`📺 4. SCREEN FILTER: [${filterName}] (CLICK TO CYCLE)`, this.width / 2, 359);
-
-    // 5. GLOBAL HALL OF FAME
-    ctx.fillStyle = 'rgba(10, 24, 48, 0.85)';
-    ctx.fillRect(btnX, 380, btnW, 36);
+    ctx.fillRect(btnX, 348, btnW, 38);
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 1.5;
     ctx.shadowColor = '#38bdf8';
     ctx.shadowBlur = 6;
-    ctx.strokeRect(btnX, 380, btnW, 36);
+    ctx.strokeRect(btnX, 348, btnW, 38);
 
     ctx.font = 'bold 14px "Share Tech Mono", monospace';
     ctx.fillStyle = '#38bdf8';
-    ctx.fillText('🏆 5. GLOBAL HALL OF FAME (REALTIME LEADERBOARD)', this.width / 2, 403);
+    ctx.fillText('🏆 4. GLOBAL HALL OF FAME (REALTIME LEADERBOARD)', this.width / 2, 372);
 
-    // 6. CALLSIGN / PILOT
+    // 5. CALLSIGN / PILOT
     ctx.fillStyle = 'rgba(10, 24, 48, 0.85)';
-    ctx.fillRect(btnX, 424, btnW, 36);
+    ctx.fillRect(btnX, 396, btnW, 38);
     ctx.strokeStyle = '#a855f7';
     ctx.lineWidth = 1.5;
     ctx.shadowColor = '#a855f7';
     ctx.shadowBlur = 6;
-    ctx.strokeRect(btnX, 424, btnW, 36);
+    ctx.strokeRect(btnX, 396, btnW, 38);
 
     ctx.font = 'bold 14px "Share Tech Mono", monospace';
     ctx.fillStyle = '#c084fc';
-    ctx.fillText(`👤 6. PILOT CALLSIGN: [${this.pilotInput}] (CLICK TO EDIT)`, this.width / 2, 447);
+    ctx.fillText(`👤 5. PILOT CALLSIGN: [${this.pilotInput}] (CLICK TO EDIT)`, this.width / 2, 420);
 
     // Controls Legend Footer
     ctx.font = '12px "Share Tech Mono", monospace';
@@ -1100,9 +1066,9 @@ export class UIManager {
     ctx.fillText(
       'CONTROLS: WASD / Arrows = Move  |  Space / Z = Primary  |  X / Shift = Special  |  Tab = Cycle Special  |  ESC = Pause',
       this.width / 2,
-      495
+      485
     );
-    ctx.fillText('TOUCH / APK: On-screen virtual joystick & buttons  |  GAMEPAD: Auto-detected plug & play', this.width / 2, 515);
+    ctx.fillText('TOUCH / APK: On-screen virtual joystick & buttons  |  GAMEPAD: Auto-detected plug & play', this.width / 2, 508);
   }
 
   private handleSettingsClick(x: number, y: number): void {
@@ -1139,27 +1105,7 @@ export class UIManager {
       }
     }
 
-    // 3. Screen Filter row: y ~ mY + 215 to mY + 250
-    if (y >= mY + 215 && y <= mY + 250) {
-      const filters: ScreenFilter[] = [
-        'NOKIA_CLASSIC',
-        'NOKIA_BLUE',
-        'GAMEBOY_DMG',
-        'CYBER_AMBER',
-        'MODERN_OLED',
-        'RANDOM_PER_LEVEL',
-      ];
-      for (let i = 0; i < 6; i++) {
-        const bx = 180 + i * 98;
-        if (x >= bx && x <= bx + 92) {
-          filterManager.setFilter(filters[i]);
-          soundSynthesizer.playUiBeep();
-          return;
-        }
-      }
-    }
-
-    // 4. Quick Toggles: y ~ mY + 285 to mY + 325
+    // 3. Quick Toggles: y ~ mY + 285 to mY + 325
     if (y >= mY + 285 && y <= mY + 325) {
       if (x >= 210 && x <= 440) {
         this.callbacks?.onToggleTouch();
@@ -1173,7 +1119,7 @@ export class UIManager {
       }
     }
 
-    // 5. Close / Save & Return: y ~ mY + 375 to mY + 420
+    // 4. Close / Save & Return: y ~ mY + 375 to mY + 420
     if (x >= 240 && x <= 720 && y >= mY + 375 && y <= mY + 420) {
       this.closeSettings();
       return;
@@ -1267,37 +1213,28 @@ export class UIManager {
       ctx.fillText(sk.name, bx + 52, by + 19);
     }
 
-    // SECTION 3: RETRO SCREEN FILTER
+    // SECTION 3: IN-GAME RETRO ATMOSPHERE STATUS
     ctx.textAlign = 'left';
     ctx.font = 'bold 13px "Share Tech Mono", monospace';
     ctx.fillStyle = '#ffea00';
-    ctx.fillText('3. NOSTALGIC SCREEN FILTER (IMMERSIVE RETRO LCD & CRT SHADERS):', mX + 30, mY + 205);
+    ctx.fillText('3. NOSTALGIC RETRO SECTOR ATMOSPHERE (IN-GAME SYSTEM):', mX + 30, mY + 205);
 
-    const curFilter = filterManager.getFilter();
-    const filters: { name: string; id: ScreenFilter }[] = [
-      { name: 'NOKIA GREEN', id: 'NOKIA_CLASSIC' },
-      { name: 'NOKIA BLUE', id: 'NOKIA_BLUE' },
-      { name: 'GAME BOY', id: 'GAMEBOY_DMG' },
-      { name: 'CYBER AMBER', id: 'CYBER_AMBER' },
-      { name: 'MODERN OLED', id: 'MODERN_OLED' },
-      { name: 'RANDOM/LVL', id: 'RANDOM_PER_LEVEL' },
-    ];
-    for (let i = 0; i < filters.length; i++) {
-      const fl = filters[i];
-      const bx = 180 + i * 98;
-      const by = mY + 215;
-      const isAct = curFilter === fl.id;
-      ctx.fillStyle = isAct ? 'rgba(0, 255, 170, 0.25)' : 'rgba(15, 30, 60, 0.8)';
-      ctx.fillRect(bx, by, 92, 30);
-      ctx.strokeStyle = isAct ? '#00ffaa' : '#475569';
-      ctx.lineWidth = isAct ? 2 : 1;
-      ctx.strokeRect(bx, by, 92, 30);
+    ctx.fillStyle = 'rgba(15, 30, 60, 0.85)';
+    ctx.fillRect(mX + 30, mY + 215, mW - 60, 52);
+    ctx.strokeStyle = '#00ffaa';
+    ctx.lineWidth = 1;
+    ctx.shadowColor = '#00ffaa';
+    ctx.shadowBlur = 4;
+    ctx.strokeRect(mX + 30, mY + 215, mW - 60, 52);
 
-      ctx.textAlign = 'center';
-      ctx.font = isAct ? 'bold 10px "Share Tech Mono", monospace' : '10px "Share Tech Mono", monospace';
-      ctx.fillStyle = isAct ? '#00ffaa' : '#94a3b8';
-      ctx.fillText(fl.name, bx + 46, by + 19);
-    }
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 12px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#00ffaa';
+    ctx.fillText('★ AUTHENTIC NOKIA 3310 MONOCHROME LCD PROTOCOL ENGAGED DYNAMICALLY ★', this.width / 2, mY + 234);
+    ctx.font = '11px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.shadowBlur = 0;
+    ctx.fillText('Engages automatically at Sector 1 and during unexpected retro anomaly endless sectors!', this.width / 2, mY + 252);
 
     // SECTION 4: TOGGLES
     ctx.textAlign = 'center';

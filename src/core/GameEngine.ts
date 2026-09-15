@@ -81,10 +81,16 @@ export class GameEngine {
       onOpenShop: () => {
         this.previousState = this.state;
         this.state = 'SHOP';
+        filterManager.resetMenuFilter();
       },
       onCloseShop: () => {
         this.state = this.previousState === 'PAUSED' ? 'PAUSED' : 'MAIN_MENU';
         this.entities.player.applyShip(shopManager.getEquippedShip());
+        if (this.state === 'PAUSED') {
+          filterManager.setSectorFilter(this.stageId);
+        } else {
+          filterManager.resetMenuFilter();
+        }
       },
       onOpenSettings: () => {
         this.previousState = this.state;
@@ -92,6 +98,11 @@ export class GameEngine {
       },
       onCloseSettings: () => {
         this.state = this.previousState === 'PAUSED' ? 'PAUSED' : 'MAIN_MENU';
+        if (this.state === 'PAUSED') {
+          filterManager.setSectorFilter(this.stageId);
+        } else {
+          filterManager.resetMenuFilter();
+        }
       },
     });
 
@@ -105,11 +116,13 @@ export class GameEngine {
 
   public skipIntro(): void {
     this.state = 'MAIN_MENU';
+    filterManager.resetMenuFilter();
     soundSynthesizer.playUiBeep();
   }
 
   public onConfirmPilot(_callsign: string): void {
     this.state = 'MAIN_MENU';
+    filterManager.resetMenuFilter();
   }
 
   public start(): void {
@@ -129,9 +142,19 @@ export class GameEngine {
     this.entities.resetAll();
     this.entities.player.applyShip(shopManager.getEquippedShip());
     this.particleSystem.clear();
-    this.starfield.setBiome('SPACE');
+
+    // Sector 1: Authentic Nokia 3310 Mode!
+    filterManager.setSectorFilter(1);
+    this.starfield.setBiome('NOKIA_CITY');
     this.starfield.setWarpSpeed(false);
     soundSynthesizer.setMusicTheme('STAGE1');
+
+    this.particleSystem.emitFloatingText(
+      480,
+      240,
+      '★ RETRO NOSTALGIA ANOMALY // NOKIA 3310 PROTOCOL ENGAGED ★',
+      '#ffea00'
+    );
   }
 
   public resumeGame(): void {
@@ -276,10 +299,18 @@ export class GameEngine {
         this.stageTimeline = 0;
         this.bossSpawned = false;
         this.entities.boss = null;
-        const isSpace = this.stageId % 2 === 1;
-        this.starfield.setBiome(isSpace ? 'SPACE' : 'CYBER_FORTRESS');
+
+        // Sector biome according to retro/modern mode
+        const isNokia = filterManager.isNokiaActive();
+        if (isNokia) {
+          this.starfield.setBiome('NOKIA_CITY');
+          soundSynthesizer.setMusicTheme('STAGE1');
+        } else {
+          const isCyber = this.stageId % 2 === 0;
+          this.starfield.setBiome(isCyber ? 'CYBER_FORTRESS' : 'SPACE');
+          soundSynthesizer.setMusicTheme(isCyber ? 'STAGE2' : 'STAGE1');
+        }
         this.starfield.setWarpSpeed(false);
-        soundSynthesizer.setMusicTheme(isSpace ? 'STAGE1' : 'STAGE2');
         this.particleSystem.emitFloatingText(480, 260, `ENTERING SECTOR ${this.stageId}...`, '#00f0ff');
       }
     } else if (this.state === 'GAME_OVER' || this.state === 'VICTORY') {
@@ -417,23 +448,21 @@ export class GameEngine {
 
     // Apply Nostalgic Level Screen Filter (Random / Mode per level)
     const newFilter = filterManager.onSectorWarp(this.stageId + 1);
-    const filterLabel =
-      newFilter === 'NOKIA_CLASSIC'
-        ? 'NOKIA 3310 MONOCHROME LCD'
-        : newFilter === 'NOKIA_BLUE'
-        ? 'NOKIA 3330 BLUE BACKLIGHT'
-        : newFilter === 'GAMEBOY_DMG'
-        ? 'GAME BOY DMG 4-SHADE'
-        : newFilter === 'CYBER_AMBER'
-        ? 'AMBER PHOSPHOR CRT'
-        : 'MODERN FULL COLOR OLED';
-
-    this.particleSystem.emitFloatingText(
-      480,
-      290,
-      `// RETRO DISPLAY MATRIX: ${filterLabel} //`,
-      '#ffea00'
-    );
+    if (newFilter === 'NOKIA_CLASSIC') {
+      this.particleSystem.emitFloatingText(
+        480,
+        290,
+        '★ RETRO NOSTALGIA ANOMALY // NOKIA 3310 MONOCHROME LCD ENGAGED ★',
+        '#ffea00'
+      );
+    } else {
+      this.particleSystem.emitFloatingText(
+        480,
+        290,
+        `// HIGH-TECH DISPLAY MATRIX: MODERN FULL COLOR OLED //`,
+        '#00f0ff'
+      );
+    }
   }
 
   private render(): void {

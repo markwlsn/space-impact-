@@ -1,65 +1,70 @@
 import { ScreenFilter } from '../types';
 
 export class FilterManager {
-  private currentFilter: ScreenFilter = 'NOKIA_CLASSIC';
-  private activeLevelFilter: ScreenFilter = 'NOKIA_CLASSIC';
+  private activeLevelFilter: ScreenFilter = 'MODERN_OLED';
 
   constructor() {
-    this.loadFilter();
-  }
-
-  private loadFilter(): void {
-    try {
-      const saved = localStorage.getItem('space_impact_screen_filter') as ScreenFilter | null;
-      if (saved) {
-        this.currentFilter = saved;
-      }
-    } catch {
-      this.currentFilter = 'NOKIA_CLASSIC';
-    }
-    this.activeLevelFilter = this.currentFilter;
-    this.applyToDOM();
+    this.resetMenuFilter();
   }
 
   public getFilter(): ScreenFilter {
-    return this.currentFilter;
+    return this.activeLevelFilter;
   }
 
   public getActiveLevelFilter(): ScreenFilter {
     return this.activeLevelFilter;
   }
 
-  public setFilter(filter: ScreenFilter): void {
-    this.currentFilter = filter;
-    this.activeLevelFilter = filter;
-    try {
-      localStorage.setItem('space_impact_screen_filter', filter);
-    } catch {}
+  public isNokiaActive(): boolean {
+    return this.activeLevelFilter === 'NOKIA_CLASSIC';
+  }
+
+  /**
+   * Reset filter to MODERN_OLED so Main Menu, Shop, Settings, and Pilot entry
+   * are rendered in crisp, readable high-contrast full color.
+   */
+  public resetMenuFilter(): void {
+    this.activeLevelFilter = 'MODERN_OLED';
     this.applyToDOM();
   }
 
   /**
-   * Called on sector warp. If RANDOM_PER_LEVEL is active, pick a random nostalgic filter!
+   * Automatically assigns screen filter based on endless sector:
+   * - Sector 1 starts in authentic NOKIA 3310 MONOCHROME LCD mode!
+   * - Sector 2 warps into high-tech Cyber Fortress (MODERN OLED)
+   * - Sector 3 warps into Retro Anomaly (NOKIA 3310)
+   * - Sector 4 warps into Quantum Void (MODERN OLED)
+   * - Endless Sector 5+: Alternates odd/even or retro anomaly (Odd = Nokia 3310, Even = Modern OLED)
    */
-  public onSectorWarp(_stageId: number): ScreenFilter {
-    if (this.currentFilter === 'RANDOM_PER_LEVEL') {
-      const filters: ScreenFilter[] = ['NOKIA_CLASSIC', 'NOKIA_BLUE', 'GAMEBOY_DMG', 'CYBER_AMBER', 'MODERN_OLED'];
-      // Deterministically varied or random
-      const pick = filters[Math.floor(Math.random() * filters.length)];
-      this.activeLevelFilter = pick;
-      this.applyToDOM();
-      return pick;
+  public setSectorFilter(stageId: number): ScreenFilter {
+    let target: ScreenFilter = 'MODERN_OLED';
+    if (stageId === 1 || stageId % 2 === 1) {
+      target = 'NOKIA_CLASSIC';
     } else {
-      this.activeLevelFilter = this.currentFilter;
-      this.applyToDOM();
-      return this.currentFilter;
+      target = 'MODERN_OLED';
     }
+
+    this.activeLevelFilter = target;
+    this.applyToDOM();
+    return target;
+  }
+
+  /**
+   * Sector warp hook
+   */
+  public onSectorWarp(stageId: number): ScreenFilter {
+    return this.setSectorFilter(stageId);
+  }
+
+  public setFilter(filter: ScreenFilter): void {
+    this.activeLevelFilter = filter;
+    this.applyToDOM();
   }
 
   public applyToDOM(): void {
     if (typeof document === 'undefined') return;
 
-    const actual = this.activeLevelFilter === 'RANDOM_PER_LEVEL' ? 'NOKIA_CLASSIC' : this.activeLevelFilter;
+    const actual = this.activeLevelFilter;
     document.body.dataset.screenFilter = actual;
 
     // Toggle specific body class for styling
@@ -71,32 +76,17 @@ export class FilterManager {
       'filter-modern-oled'
     );
 
-    const classMap: Record<string, string> = {
-      NOKIA_CLASSIC: 'filter-nokia-classic',
-      NOKIA_BLUE: 'filter-nokia-blue',
-      GAMEBOY_DMG: 'filter-gameboy-dmg',
-      CYBER_AMBER: 'filter-cyber-amber',
-      MODERN_OLED: 'filter-modern-oled',
-    };
-
-    if (classMap[actual]) {
-      document.body.classList.add(classMap[actual]);
+    if (actual === 'NOKIA_CLASSIC') {
+      document.body.classList.add('filter-nokia-classic');
+    } else if (actual === 'NOKIA_BLUE') {
+      document.body.classList.add('filter-nokia-blue');
+    } else if (actual === 'GAMEBOY_DMG') {
+      document.body.classList.add('filter-gameboy-dmg');
+    } else if (actual === 'CYBER_AMBER') {
+      document.body.classList.add('filter-cyber-amber');
+    } else {
+      document.body.classList.add('filter-modern-oled');
     }
-  }
-
-  public cycleFilter(): ScreenFilter {
-    const list: ScreenFilter[] = [
-      'NOKIA_CLASSIC',
-      'NOKIA_BLUE',
-      'GAMEBOY_DMG',
-      'CYBER_AMBER',
-      'MODERN_OLED',
-      'RANDOM_PER_LEVEL',
-    ];
-    const idx = list.indexOf(this.currentFilter);
-    const next = list[(idx + 1) % list.length];
-    this.setFilter(next);
-    return next;
   }
 }
 
