@@ -36,7 +36,12 @@ jobs:
         run: npm run build
 
       - name: Copy Assets to Android Project
-        run: npx cap copy android
+        run: |
+          npx cap sync android || true
+          mkdir -p android/app/src/main/assets/public
+          cp -r dist/* android/app/src/main/assets/public/
+          cp capacitor.config.json android/app/src/main/assets/capacitor.config.json
+          echo '[]' > android/app/src/main/assets/capacitor.plugins.json
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
