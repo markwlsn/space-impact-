@@ -10,8 +10,12 @@
  */
 
 export const SUPABASE_CONFIG = {
-  url: (import.meta.env.VITE_SUPABASE_URL as string) || '',
-  anonKey: (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || '',
+  url:
+    (import.meta.env.VITE_SUPABASE_URL as string) ||
+    'https://ussfjbhcfknveqzdlbgd.supabase.co',
+  anonKey:
+    (import.meta.env.VITE_SUPABASE_ANON_KEY as string) ||
+    'sb_publishable_Pi9i79ah3x32IVXB8anFQQ_ng_Q7htA',
   tableName: 'space_impact_leaderboard',
   isConfigured(): boolean {
     return (
