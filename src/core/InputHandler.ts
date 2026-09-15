@@ -1,4 +1,5 @@
 import { InputState, Vector2D } from '../types';
+import { DeviceDetector } from './DeviceDetector';
 
 export class InputHandler {
   private state: InputState = {
@@ -26,13 +27,18 @@ export class InputHandler {
 
   constructor() {
     this.setupKeyboardListeners();
-    this.detectTouchDevice();
+    this.initDeviceDetection();
   }
 
-  private detectTouchDevice(): void {
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-      this.isTouchEnabled = true;
-    }
+  private initDeviceDetection(): void {
+    const info = DeviceDetector.initAutoDetect((updatedInfo) => {
+      this.isTouchEnabled = updatedInfo.isMobile;
+    });
+    this.isTouchEnabled = info.isMobile;
+  }
+
+  public setTouchEnabled(enabled: boolean): void {
+    this.isTouchEnabled = enabled;
   }
 
   public toggleTouchControls(): boolean {

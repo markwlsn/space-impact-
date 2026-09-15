@@ -2,8 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Space Impact Modernized // Retro-Futuristic Vector Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <!-- Mobile Web App & PWA Meta Capabilities -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Space Impact" />
+    <meta name="theme-color" content="#030712" />
+    <meta name="format-detection" content="telephone=no" />
+    
+    <title>Space Impact Modernized // Web App Edition</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -15,37 +24,45 @@
         user-select: none;
         -webkit-user-select: none;
         touch-action: manipulation;
+        -webkit-touch-callout: none;
       }
 
-      body {
+      html, body {
+        width: 100%;
+        height: 100%;
+        height: 100dvh; /* Dynamic viewport height for iOS/Android address bars */
         background: #030712;
         color: #f8fafc;
         font-family: 'Share Tech Mono', monospace;
-        min-height: 100vh;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        overscroll-behavior: none;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
       }
 
       header {
         width: 100%;
         max-width: 960px;
-        padding: 8px 14px;
+        padding: 6px 14px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: rgba(15, 23, 42, 0.9);
+        background: rgba(15, 23, 42, 0.92);
         border: 1px solid rgba(0, 240, 255, 0.25);
         border-bottom: none;
         border-radius: 8px 8px 0 0;
+        backdrop-filter: blur(8px);
+        z-index: 20;
       }
 
       .logo-group {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+        flex-wrap: wrap;
       }
 
       .logo-title {
@@ -57,18 +74,33 @@
       }
 
       .nokia-badge {
-        font-size: 11px;
+        font-size: 10px;
         padding: 2px 6px;
         background: rgba(56, 189, 248, 0.15);
         border: 1px solid #38bdf8;
         border-radius: 4px;
         color: #38bdf8;
+        letter-spacing: 0.5px;
+      }
+
+      .device-badge {
+        background: rgba(0, 255, 102, 0.15);
+        border-color: #00ff66;
+        color: #00ff66;
+        font-weight: bold;
+      }
+
+      .device-badge.pc {
+        background: rgba(0, 240, 255, 0.15);
+        border-color: #00f0ff;
+        color: #00f0ff;
       }
 
       .controls-bar {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+        flex-wrap: wrap;
       }
 
       button.btn {
@@ -76,7 +108,7 @@
         color: #cbd5e1;
         border: 1px solid #475569;
         border-radius: 4px;
-        padding: 5px 10px;
+        padding: 4px 8px;
         font-size: 11px;
         font-weight: 600;
         font-family: 'Share Tech Mono', monospace;
@@ -84,7 +116,7 @@
         transition: all 0.15s ease;
       }
 
-      button.btn:hover {
+      button.btn:hover, button.btn:active {
         background: #334155;
         border-color: #00f0ff;
         color: #ffffff;
@@ -106,9 +138,13 @@
         width: 100%;
         max-width: 960px;
         aspect-ratio: 16 / 9;
+        max-height: calc(100dvh - 75px);
         background: #000;
-        box-shadow: 0 0 30px rgba(0, 240, 255, 0.15);
+        box-shadow: 0 0 35px rgba(0, 240, 255, 0.18);
         border: 1px solid rgba(0, 240, 255, 0.3);
+        display: flex;
+        justify-content: center;
+        align-items: center;
       }
 
       canvas#gameCanvas {
@@ -144,7 +180,7 @@
         opacity: 0;
       }
 
-      /* Touch Overlay Controls (T14) */
+      /* Touch Overlay Controls */
       #touch-overlay {
         position: absolute;
         top: 0;
@@ -155,7 +191,7 @@
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
-        padding: 18px 24px;
+        padding: 14px 18px;
         z-index: 10;
       }
 
@@ -165,11 +201,11 @@
 
       #touch-dpad {
         position: relative;
-        width: 130px;
-        height: 130px;
+        width: 120px;
+        height: 120px;
         border-radius: 50%;
-        background: rgba(15, 23, 42, 0.55);
-        border: 2px solid rgba(0, 240, 255, 0.5);
+        background: rgba(15, 23, 42, 0.6);
+        border: 2px solid rgba(0, 240, 255, 0.55);
         pointer-events: auto;
         touch-action: none;
         display: flex;
@@ -179,12 +215,12 @@
 
       #touch-stick {
         position: absolute;
-        width: 54px;
-        height: 54px;
+        width: 50px;
+        height: 50px;
         border-radius: 50%;
-        background: rgba(0, 240, 255, 0.4);
+        background: rgba(0, 240, 255, 0.45);
         border: 2px solid #00f0ff;
-        box-shadow: 0 0 12px rgba(0, 240, 255, 0.6);
+        box-shadow: 0 0 12px rgba(0, 240, 255, 0.65);
         pointer-events: none;
       }
 
@@ -198,7 +234,7 @@
 
       .touch-action-row {
         display: flex;
-        gap: 12px;
+        gap: 10px;
         align-items: center;
       }
 
@@ -206,14 +242,14 @@
         background: rgba(15, 23, 42, 0.75);
         border: 2px solid #00f0ff;
         border-radius: 50%;
-        width: 62px;
-        height: 62px;
+        width: 58px;
+        height: 58px;
         color: #00f0ff;
         font-weight: bold;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 12px;
+        font-size: 11px;
         cursor: pointer;
         pointer-events: auto;
         touch-action: none;
@@ -223,23 +259,23 @@
 
       .touch-action-btn:active {
         transform: scale(0.92);
-        background: rgba(0, 240, 255, 0.3);
+        background: rgba(0, 240, 255, 0.35);
       }
 
       .touch-action-btn.small {
-        width: 48px;
-        height: 48px;
+        width: 44px;
+        height: 44px;
         font-size: 10px;
         border-color: #38bdf8;
         color: #38bdf8;
       }
 
       .touch-action-btn.action-fire {
-        width: 72px;
-        height: 72px;
+        width: 68px;
+        height: 68px;
         border-color: #00ff66;
         color: #00ff66;
-        font-size: 14px;
+        font-size: 13px;
         box-shadow: 0 0 14px rgba(0, 255, 102, 0.35);
       }
 
@@ -252,16 +288,97 @@
       footer {
         width: 100%;
         max-width: 960px;
-        padding: 8px 14px;
+        padding: 5px 14px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: rgba(15, 23, 42, 0.9);
+        background: rgba(15, 23, 42, 0.92);
         border: 1px solid rgba(0, 240, 255, 0.25);
         border-top: none;
         border-radius: 0 0 8px 8px;
         font-size: 11px;
         color: #94a3b8;
+        backdrop-filter: blur(8px);
+        z-index: 20;
+      }
+
+      /* Orientation Advisory Modal (Portrait on Mobile) */
+      #orientation-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(3, 7, 18, 0.94);
+        backdrop-filter: blur(10px);
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
+      }
+
+      #orientation-overlay.hidden {
+        display: none !important;
+      }
+
+      .orientation-box {
+        max-width: 380px;
+        background: #0f172a;
+        border: 2px solid #00f0ff;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 0 30px rgba(0, 240, 255, 0.4);
+      }
+
+      .rotate-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+        animation: spin-pulse 2s infinite ease-in-out;
+      }
+
+      @keyframes spin-pulse {
+        0%, 100% { transform: rotate(0deg) scale(1); }
+        50% { transform: rotate(90deg) scale(1.1); }
+      }
+
+      .orientation-box h3 {
+        color: #00f0ff;
+        font-size: 18px;
+        margin-bottom: 8px;
+        letter-spacing: 1px;
+      }
+
+      .orientation-box p {
+        font-size: 13px;
+        color: #cbd5e1;
+        line-height: 1.4;
+        margin-bottom: 16px;
+      }
+
+      /* Mobile Specific Responsive Tweaks */
+      @media (max-width: 768px) {
+        header {
+          padding: 4px 10px;
+          border-radius: 0;
+        }
+        .logo-title {
+          font-size: 13px;
+        }
+        button.btn {
+          padding: 3px 6px;
+          font-size: 10px;
+        }
+        footer {
+          display: none; /* Hide footer on small mobile screens to save screen real estate */
+        }
+        #gameContainer {
+          border-radius: 0;
+          border-left: none;
+          border-right: none;
+          max-height: calc(100dvh - 42px);
+        }
       }
     </style>
   </head>
@@ -269,10 +386,12 @@
     <header>
       <div class="logo-group">
         <span class="logo-title">SPACE IMPACT</span>
-        <span class="nokia-badge">NOKIA 3310 MODERNIZED</span>
+        <span class="nokia-badge">NOKIA 3310</span>
+        <span id="device-badge" class="nokia-badge device-badge">💻 DETECTING...</span>
       </div>
       <div class="controls-bar">
-        <button id="touchToggleBtn" class="btn" title="Toggle On-Screen Touch Controls">📱 Touch: Auto</button>
+        <button id="fullscreenBtn" class="btn" title="Toggle Fullscreen">⛶ Fullscreen</button>
+        <button id="touchToggleBtn" class="btn" title="Toggle On-Screen Controls">📱 Touch</button>
         <button id="crtBtn" class="btn active" title="Toggle Scanlines">📺 CRT: ON</button>
         <button id="muteBtn" class="btn" title="Mute Audio [M]">🔊 Audio: ON</button>
       </div>
@@ -283,7 +402,7 @@
       <div id="crt-overlay"></div>
 
       <!-- On-Screen Virtual Touch Controls (T14) -->
-      <div id="touch-overlay">
+      <div id="touch-overlay" class="hidden">
         <div id="touch-dpad">
           <div id="touch-stick"></div>
         </div>
@@ -301,9 +420,19 @@
     </div>
 
     <footer>
-      <div>[WASD / Arrows] Move &bull; [Space / Z] Fire &bull; [X / Shift] Special &bull; [Tab] Swap &bull; [P / Esc] Pause</div>
+      <div id="controls-hint">[WASD / Arrows] Move &bull; [Space / Z] Fire &bull; [X / Shift] Special &bull; [Tab] Swap &bull; [P / Esc] Pause</div>
       <div>60 FPS &bull; Native Web Audio &bull; Pure Canvas 2D &bull; Gamepad API</div>
     </footer>
+
+    <!-- Orientation Advisory Modal for Mobile Portrait -->
+    <div id="orientation-overlay" class="hidden">
+      <div class="orientation-box">
+        <div class="rotate-icon">📱 ➔ 🔄</div>
+        <h3>ROTATE TO LANDSCAPE</h3>
+        <p>Space Impact is designed for widescreen retro combat.<br>Please rotate your phone horizontally for the best experience.</p>
+        <button id="dismissOrientationBtn" class="btn">Continue Anyway</button>
+      </div>
+    </div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -1,5 +1,6 @@
 import { GameEngine } from './core/GameEngine';
 import { soundSynthesizer } from './audio/SoundSynthesizer';
+import { DeviceDetector, DeviceInfo } from './core/DeviceDetector';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -11,27 +12,98 @@ window.addEventListener('DOMContentLoaded', () => {
   const engine = new GameEngine(canvas);
   const input = engine.getInputHandler();
 
-  // HTML Controls: Touch Overlay Setup (T14)
+  // HTML UI Elements
   const touchOverlay = document.getElementById('touch-overlay');
   const touchToggleBtn = document.getElementById('touchToggleBtn') as HTMLButtonElement;
+  const deviceBadge = document.getElementById('device-badge');
+  const fullscreenBtn = document.getElementById('fullscreenBtn') as HTMLButtonElement;
   const crtBtn = document.getElementById('crtBtn') as HTMLButtonElement;
   const crtOverlay = document.getElementById('crt-overlay');
   const muteBtn = document.getElementById('muteBtn') as HTMLButtonElement;
+  const orientationOverlay = document.getElementById('orientation-overlay');
+  const dismissOrientationBtn = document.getElementById('dismissOrientationBtn');
+  const controlsHint = document.getElementById('controls-hint');
 
-  // Auto-detect touch or mobile display
-  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  if (!hasTouch && window.innerWidth > 768) {
-    touchOverlay?.classList.add('hidden');
-    if (touchToggleBtn) touchToggleBtn.textContent = '📱 Touch: OFF';
-  } else {
-    touchOverlay?.classList.remove('hidden');
-    input.isTouchEnabled = true;
-    if (touchToggleBtn) touchToggleBtn.textContent = '📱 Touch: ON';
-  }
+  // One-time global gesture listener to unlock Web Audio API on mobile
+  const unlockAudio = () => {
+    soundSynthesizer.initAudioContext();
+    window.removeEventListener('pointerdown', unlockAudio);
+    window.removeEventListener('touchstart', unlockAudio);
+  };
+  window.addEventListener('pointerdown', unlockAudio, { passive: true });
+  window.addEventListener('touchstart', unlockAudio, { passive: true });
 
+  let orientationDismissed = false;
+  dismissOrientationBtn?.addEventListener('click', () => {
+    orientationDismissed = true;
+    orientationOverlay?.classList.add('hidden');
+  });
+
+  /**
+   * Applies layout, touch control visibility, and UI badges based on detected device
+   */
+  const applyDeviceConfiguration = (info: DeviceInfo) => {
+    if (info.isMobile) {
+      // Mobile / Tablet Browser Environment
+      input.setTouchEnabled(true);
+      touchOverlay?.classList.remove('hidden');
+
+      if (deviceBadge) {
+        deviceBadge.textContent = info.isTablet ? '📱 TABLET WEB' : '📱 MOBILE WEB';
+        deviceBadge.className = 'nokia-badge device-badge';
+      }
+
+      if (touchToggleBtn) {
+        touchToggleBtn.textContent = '📱 Touch: ON';
+        touchToggleBtn.classList.add('active');
+      }
+
+      if (controlsHint) {
+        controlsHint.innerHTML =
+          '<strong>[Touch Joystick]</strong> Move &bull; <strong>[FIRE]</strong> Blaster &bull; <strong>[SPECIAL]</strong> Secondary &bull; <strong>[SWAP]</strong> Cycle';
+      }
+
+      // Check orientation on mobile phones
+      if (!info.isLandscape && window.innerHeight > window.innerWidth && !orientationDismissed) {
+        orientationOverlay?.classList.remove('hidden');
+      } else {
+        orientationOverlay?.classList.add('hidden');
+      }
+    } else {
+      // Desktop / Laptop PC Browser Environment
+      input.setTouchEnabled(false);
+      touchOverlay?.classList.add('hidden');
+
+      if (deviceBadge) {
+        deviceBadge.textContent = '💻 PC WEB';
+        deviceBadge.className = 'nokia-badge device-badge pc';
+      }
+
+      if (touchToggleBtn) {
+        touchToggleBtn.textContent = '💻 Touch: OFF';
+        touchToggleBtn.classList.remove('active');
+      }
+
+      if (controlsHint) {
+        controlsHint.innerHTML =
+          '[WASD / Arrows] Move &bull; [Space / Z] Fire &bull; [X / Shift] Special &bull; [Tab] Swap &bull; [P / Esc] Pause';
+      }
+
+      // Orientation warning is irrelevant on desktop monitors
+      orientationOverlay?.classList.add('hidden');
+    }
+  };
+
+  // Initialize automatic detection with real-time responsive listeners
+  const initialInfo = DeviceDetector.initAutoDetect((updatedInfo) => {
+    applyDeviceConfiguration(updatedInfo);
+  });
+  applyDeviceConfiguration(initialInfo);
+
+  // Manual Touch Toggle Override (useful for touchscreen laptops or DevTools testing)
   touchToggleBtn?.addEventListener('click', () => {
-    const enabled = input.toggleTouchControls();
-    if (enabled) {
+    const isNowEnabled = input.toggleTouchControls();
+    if (isNowEnabled) {
       touchOverlay?.classList.remove('hidden');
       touchToggleBtn.textContent = '📱 Touch: ON';
       touchToggleBtn.classList.add('active');
@@ -39,6 +111,38 @@ window.addEventListener('DOMContentLoaded', () => {
       touchOverlay?.classList.add('hidden');
       touchToggleBtn.textContent = '📱 Touch: OFF';
       touchToggleBtn.classList.remove('active');
+    }
+  });
+
+  // Fullscreen API toggle
+  fullscreenBtn?.addEventListener('click', () => {
+    const doc = document as any;
+    const docEl = document.documentElement as any;
+
+    if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+      if (docEl.requestFullscreen) {
+        docEl.requestFullscreen().catch(() => {});
+      } else if (docEl.webkitRequestFullscreen) {
+        docEl.webkitRequestFullscreen();
+      }
+      fullscreenBtn.textContent = '⛶ Exit Full';
+      fullscreenBtn.classList.add('active');
+    } else {
+      if (doc.exitFullscreen) {
+        doc.exitFullscreen().catch(() => {});
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+      }
+      fullscreenBtn.textContent = '⛶ Fullscreen';
+      fullscreenBtn.classList.remove('active');
+    }
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    const isFull = !!document.fullscreenElement;
+    if (fullscreenBtn) {
+      fullscreenBtn.textContent = isFull ? '⛶ Exit Full' : '⛶ Fullscreen';
+      fullscreenBtn.classList.toggle('active', isFull);
     }
   });
 
@@ -75,7 +179,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const touchDpad = document.getElementById('touch-dpad');
   const touchStick = document.getElementById('touch-stick');
   let dpadPointerId: number | null = null;
-  const maxStickRadius = 38;
+  const maxStickRadius = 35;
 
   if (touchDpad && touchStick) {
     const handleDpadMove = (clientX: number, clientY: number) => {
