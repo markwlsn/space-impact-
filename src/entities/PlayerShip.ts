@@ -26,12 +26,14 @@ export class PlayerShip implements Entity {
   private width: number = 42;
   private height: number = 22;
 
-  // Health & Shield
+  // Health & 5 Energy Cores Chance System
+  public lives: number = 5;
+  public maxLives: number = 5;
   public health: number = 100;
   public maxHealth: number = 100;
   public isInvulnerable: boolean = false;
   public invulnerabilityTimer: number = 0;
-  public invulnerabilityDuration: number = 1.2;
+  public invulnerabilityDuration: number = 2.0; // 2 full seconds of i-frames
 
   // Primary Weapons
   private primaryCooldown: number = 0;
@@ -69,7 +71,7 @@ export class PlayerShip implements Entity {
     this.maxHealth = def.maxHealth;
     this.health = def.maxHealth;
     this.primaryFireRate = def.fireRate;
-    this.invulnerabilityDuration = def.id === 'TIE_PHANTOM' ? 2.4 : 1.2;
+    this.invulnerabilityDuration = def.id === 'TIE_PHANTOM' ? 2.5 : 2.0;
 
     if (def.id === 'MILLENNIUM_FALCON') {
       this.width = 46;
@@ -94,6 +96,9 @@ export class PlayerShip implements Entity {
   public reset(x: number = 100, y: number = 270): void {
     this.position = { x, y };
     this.velocity = { x: 0, y: 0 };
+    this.lives = 5;
+    this.maxLives = 5;
+    this.health = 100;
     this.applyShip(shopManager.getEquippedShip());
     this.isDead = false;
     this.isInvulnerable = false;
@@ -111,23 +116,31 @@ export class PlayerShip implements Entity {
     soundSynthesizer.playUiBeep();
   }
 
-  public takeDamage(amount: number): boolean {
+  public takeDamage(_amount: number = 1): boolean {
     if (this.isInvulnerable || this.isDead) return false;
 
-    this.health = Math.max(0, this.health - amount);
+    // Deduct 1 chance / Energy Core
+    this.lives = Math.max(0, this.lives - 1);
+    this.health = Math.round((this.lives / this.maxLives) * 100);
+
+    // Trigger 2-second temporary invulnerability window
     this.isInvulnerable = true;
     this.invulnerabilityTimer = this.invulnerabilityDuration;
     soundSynthesizer.playDamage();
 
-    if (this.health <= 0) {
+    if (this.lives <= 0) {
       this.isDead = true;
+      this.health = 0;
     }
     return true;
   }
 
-  public heal(amount: number): void {
-    this.health = Math.min(this.maxHealth, this.health + amount);
-    soundSynthesizer.playPowerup();
+  public heal(_amount: number = 1): void {
+    if (this.lives < this.maxLives) {
+      this.lives = Math.min(this.maxLives, this.lives + 1);
+      this.health = Math.round((this.lives / this.maxLives) * 100);
+      soundSynthesizer.playPowerup();
+    }
   }
 
   public addSecondaryAmmo(type: SecondaryWeaponType, amount: number): void {
@@ -360,13 +373,31 @@ export class PlayerShip implements Entity {
   public draw(ctx: CanvasRenderingContext2D): void {
     if (this.isDead) return;
 
-    // Invulnerability flicker (FR-5)
-    if (this.isInvulnerable && Math.floor(this.invulnerabilityTimer * 20) % 2 === 0) {
-      return; // Skip draw frame to create rapid strobe effect
-    }
-
     ctx.save();
     ctx.translate(this.position.x, this.position.y);
+
+    // Invulnerability Protective Shield & Holographic Phase Shift FX (FR-5)
+    if (this.isInvulnerable) {
+      const pulse = Math.sin(this.invulnerabilityTimer * 14);
+      const shieldRadiusX = this.width * 0.75 + 8;
+      const shieldRadiusY = this.height * 0.75 + 8;
+
+      // Glowing protective force field bubble
+      ctx.beginPath();
+      ctx.ellipse(0, 0, shieldRadiusX, shieldRadiusY, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = pulse > 0 ? '#00f0ff' : '#00ffaa';
+      ctx.lineWidth = 2.0;
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 14;
+      ctx.stroke();
+
+      // Energy plasma fill
+      ctx.fillStyle = `rgba(0, 240, 255, ${0.12 + Math.abs(pulse) * 0.14})`;
+      ctx.fill();
+
+      // Rapid phase-shift holographic strobe
+      ctx.globalAlpha = Math.floor(this.invulnerabilityTimer * 18) % 2 === 0 ? 0.4 : 0.95;
+    }
 
     // Subtle pitch tilt based on vertical velocity
     const tilt = (this.velocity.y / this.speed) * 0.12;

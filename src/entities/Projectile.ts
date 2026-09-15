@@ -68,6 +68,22 @@ export class Projectile implements Entity {
     } else if (kind === 'HOMING_MISSILE') {
       this.box = { x: x - 6, y: y - 4, width: 14, height: 8 };
       this.maxLifeTime = 4.0;
+    } else if (kind === 'DRAGON_BREATH') {
+      this.box = { x: x - 8, y: y - 8, width: 16, height: 16 };
+      this.radius = 8;
+      this.maxLifeTime = 3.5;
+    } else if (kind === 'QUANTUM_PULSE') {
+      this.box = { x: x - 7, y: y - 7, width: 14, height: 14 };
+      this.radius = 7;
+      this.maxLifeTime = 4.5;
+    } else if (kind === 'HOMING_MINE') {
+      this.box = { x: x - 10, y: y - 10, width: 20, height: 20 };
+      this.radius = 10;
+      this.maxLifeTime = 7.0;
+    } else if (kind === 'GEOMETRIC_HAZARD') {
+      this.box = { x: x - 18, y: y - 9, width: 36, height: 18 };
+      this.radius = 9;
+      this.maxLifeTime = 3.0;
     } else {
       this.box = { x, y, width: 8, height: 8 };
     }
@@ -176,6 +192,64 @@ export class Projectile implements Entity {
       }
 
       if (this.position.x > 980 || this.position.y < -30 || this.position.y > 570) {
+        this.isDead = true;
+      }
+    } else if (this.kind === 'DRAGON_BREATH') {
+      this.position.x += this.velocity.x * dt;
+      this.position.y += this.velocity.y * dt;
+      this.box.x = this.position.x - this.radius;
+      this.box.y = this.position.y - this.radius;
+
+      if (particleSystem && Math.random() > 0.4) {
+        particleSystem.emitSparks(this.position.x, this.position.y, 1, '#ff6600');
+      }
+      if (this.position.x < -30 || this.position.x > 1020 || this.position.y < -30 || this.position.y > 570) {
+        this.isDead = true;
+      }
+    } else if (this.kind === 'QUANTUM_PULSE') {
+      this.position.x += this.velocity.x * dt;
+      this.position.y += this.velocity.y * dt;
+      this.box.x = this.position.x - this.radius;
+      this.box.y = this.position.y - this.radius;
+      this.angle += dt * 6.0; // Rotating pulse
+
+      if (this.position.x < -40 || this.position.x > 1020 || this.position.y < -40 || this.position.y > 580) {
+        this.isDead = true;
+      }
+    } else if (this.kind === 'HOMING_MINE') {
+      // Drifts slowly towards player
+      if (this.targetPos) {
+        const dx = this.targetPos.x - this.position.x;
+        const dy = this.targetPos.y - this.position.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        this.velocity.x += (dx / dist) * 140 * dt;
+        this.velocity.y += (dy / dist) * 140 * dt;
+        // Cap speed
+        const curSpd = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y);
+        if (curSpd > 220) {
+          this.velocity.x = (this.velocity.x / curSpd) * 220;
+          this.velocity.y = (this.velocity.y / curSpd) * 220;
+        }
+      }
+      this.position.x += this.velocity.x * dt;
+      this.position.y += this.velocity.y * dt;
+      this.box.x = this.position.x - this.radius;
+      this.box.y = this.position.y - this.radius;
+      this.angle += dt * 3.0;
+
+      if (this.position.x < -40 || this.position.x > 1020 || this.position.y < -40 || this.position.y > 580) {
+        this.isDead = true;
+      }
+    } else if (this.kind === 'GEOMETRIC_HAZARD') {
+      this.position.x += this.velocity.x * dt;
+      this.position.y += this.velocity.y * dt;
+      this.box.x = this.position.x - 18;
+      this.box.y = this.position.y - 9;
+
+      if (particleSystem && Math.random() > 0.5) {
+        particleSystem.emitSparks(this.position.x + 16, this.position.y, 1, '#00f0ff');
+      }
+      if (this.position.x < -60 || this.position.x > 1050) {
         this.isDead = true;
       }
     }
@@ -322,6 +396,99 @@ export class Projectile implements Entity {
       ctx.lineTo(-6, 2);
       ctx.closePath();
       ctx.fill();
+    } else if (this.kind === 'DRAGON_BREATH') {
+      // Searing dragon plasma fireball with fiery aura
+      ctx.shadowColor = '#ff6600';
+      ctx.shadowBlur = 16;
+
+      const grad = ctx.createRadialGradient(
+        this.position.x,
+        this.position.y,
+        1,
+        this.position.x,
+        this.position.y,
+        this.radius
+      );
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.4, '#ffea00');
+      grad.addColorStop(0.8, '#ff3300');
+      grad.addColorStop(1, 'rgba(255, 0, 0, 0)');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(this.position.x, this.position.y, this.radius * 1.3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (this.kind === 'QUANTUM_PULSE') {
+      // Rotating geometric diamond pulse (Geometry Dash style)
+      ctx.translate(this.position.x, this.position.y);
+      ctx.rotate(this.angle);
+
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 14;
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2.0;
+
+      const d = this.radius;
+      ctx.beginPath();
+      ctx.moveTo(0, -d * 1.3);
+      ctx.lineTo(d * 1.3, 0);
+      ctx.lineTo(0, d * 1.3);
+      ctx.lineTo(-d * 1.3, 0);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ff00ff';
+      ctx.beginPath();
+      ctx.arc(0, 0, d * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (this.kind === 'HOMING_MINE') {
+      // Space mine with flashing red beacon
+      ctx.translate(this.position.x, this.position.y);
+      ctx.rotate(this.angle);
+
+      ctx.shadowColor = '#ff0044';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = '#222233';
+      ctx.strokeStyle = '#ff3344';
+      ctx.lineWidth = 2.0;
+
+      // Hexagonal mine hull
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const mx = Math.cos(a) * this.radius;
+        const my = Math.sin(a) * this.radius;
+        if (i === 0) ctx.moveTo(mx, my);
+        else ctx.lineTo(mx, my);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Flashing core LED
+      const flash = Math.sin(this.lifeTime * 10) > 0;
+      ctx.fillStyle = flash ? '#ff0033' : '#ffea00';
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (this.kind === 'GEOMETRIC_HAZARD') {
+      // High-speed geometric hazard blade / arrow with neon cyan trail
+      ctx.translate(this.position.x, this.position.y);
+
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2.5;
+
+      ctx.beginPath();
+      ctx.moveTo(-16, -9);
+      ctx.lineTo(16, 0);
+      ctx.lineTo(-16, 9);
+      ctx.lineTo(-6, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
     }
 
     ctx.restore();

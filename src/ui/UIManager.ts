@@ -1,8 +1,10 @@
-import { GameState, StageId, HighScoreRecord } from '../types';
+import { GameState, StageId, ControllerSkin, ScreenFilter } from '../types';
 import { EntityManager } from '../core/EntityManager';
 import { highScoreManager } from './HighScoreManager';
 import { soundSynthesizer } from '../audio/SoundSynthesizer';
 import { shopManager } from './ShopManager';
+import { filterManager } from '../graphics/FilterManager';
+import { InputHandler } from '../core/InputHandler';
 
 export interface UIActionCallbacks {
   onStartGame: () => void;
@@ -14,6 +16,8 @@ export interface UIActionCallbacks {
   onConfirmPilot: (pilot: string) => void;
   onOpenShop?: () => void;
   onCloseShop?: () => void;
+  onOpenSettings?: () => void;
+  onCloseSettings?: () => void;
 }
 
 interface KeypadButton {
@@ -43,6 +47,7 @@ export class UIManager {
   private previousState: GameState = 'TITLE';
 
   private callbacks: UIActionCallbacks | null = null;
+  private inputHandler: InputHandler | null = null;
   private time: number = 0;
 
   constructor() {
@@ -54,6 +59,10 @@ export class UIManager {
     this.callbacks = callbacks;
   }
 
+  public setInputHandler(handler: InputHandler): void {
+    this.inputHandler = handler;
+  }
+
   public openShop(): void {
     this.previousState = this.currentState;
     this.currentState = 'SHOP';
@@ -62,8 +71,26 @@ export class UIManager {
   }
 
   public closeShop(): void {
-    this.currentState = this.previousState === 'PAUSED' ? 'PAUSED' : 'TITLE';
+    this.currentState = this.previousState === 'PAUSED' ? 'PAUSED' : 'MAIN_MENU';
     this.callbacks?.onCloseShop?.();
+    soundSynthesizer.playUiBeep();
+  }
+
+  public openSettings(): void {
+    this.previousState = this.currentState;
+    this.currentState = 'SETTINGS';
+    this.callbacks?.onOpenSettings?.();
+    soundSynthesizer.playUiBeep();
+  }
+
+  public closeSettings(): void {
+    this.currentState = this.previousState === 'PAUSED' ? 'PAUSED' : 'MAIN_MENU';
+    this.callbacks?.onCloseSettings?.();
+    soundSynthesizer.playUiBeep();
+  }
+
+  public toggleLeaderboard(): void {
+    this.showLeaderboard = !this.showLeaderboard;
     soundSynthesizer.playUiBeep();
   }
 
@@ -203,23 +230,62 @@ export class UIManager {
       return;
     }
 
+    if (this.showLeaderboard) {
+      // Any click closes leaderboard overlay
+      this.showLeaderboard = false;
+      soundSynthesizer.playUiBeep();
+      return;
+    }
+
     if (this.currentState === 'SHOP') {
       this.handleShopClick(x, y);
       return;
     }
 
-    if (this.currentState === 'TITLE') {
-      // Check if clicking Hangar / Shop button [x: 290-670, y: 265-305]
-      if (x >= 280 && x <= 680 && y >= 265 && y <= 305) {
+    if (this.currentState === 'SETTINGS') {
+      this.handleSettingsClick(x, y);
+      return;
+    }
+
+    if (this.currentState === 'MAIN_MENU' || this.currentState === 'TITLE') {
+      // 1. Deploy Mission [x: 260-700, y: 200-244]
+      if (x >= 260 && x <= 700 && y >= 200 && y <= 244) {
+        this.callbacks?.onStartGame();
+        return;
+      }
+      // 2. Starfighter Hangar [x: 260-700, y: 250-288]
+      if (x >= 260 && x <= 700 && y >= 250 && y <= 288) {
         this.openShop();
         return;
       }
-      this.callbacks?.onStartGame();
+      // 3. Controller & Settings [x: 260-700, y: 294-332]
+      if (x >= 260 && x <= 700 && y >= 294 && y <= 332) {
+        this.openSettings();
+        return;
+      }
+      // 4. Retro Filter Cycle [x: 260-700, y: 338-376]
+      if (x >= 260 && x <= 700 && y >= 338 && y <= 376) {
+        filterManager.cycleFilter();
+        soundSynthesizer.playUiBeep();
+        return;
+      }
+      // 5. Global Hall of Fame [x: 260-700, y: 382-420]
+      if (x >= 260 && x <= 700 && y >= 382 && y <= 420) {
+        this.toggleLeaderboard();
+        return;
+      }
+      // 6. Pilot Callsign [x: 260-700, y: 426-464]
+      if (x >= 260 && x <= 700 && y >= 426 && y <= 464) {
+        this.previousState = 'MAIN_MENU';
+        this.currentState = 'PILOT_ENTRY';
+        soundSynthesizer.playUiBeep();
+        return;
+      }
       return;
     }
 
     if (this.currentState === 'PAUSED') {
-      // Check if clicking Hangar / Shop button [x: 290-670, y: 325-365]
+      // Check if clicking Hangar / Shop button [x: 280-680, y: 325-365]
       if (x >= 280 && x <= 680 && y >= 325 && y <= 365) {
         this.openShop();
         return;
@@ -326,10 +392,12 @@ export class UIManager {
       this.drawCinematicIntro(ctx);
     } else if (state === 'PILOT_ENTRY') {
       this.drawPilotRegistration(ctx);
-    } else if (state === 'TITLE') {
-      this.drawTitleScreen(ctx);
+    } else if (state === 'MAIN_MENU' || state === 'TITLE') {
+      this.drawMainMenuScreen(ctx);
     } else if (state === 'SHOP') {
       this.drawShopModal(ctx);
+    } else if (state === 'SETTINGS') {
+      this.drawSettingsModal(ctx);
     } else if (state === 'PLAYING') {
       this.drawHUD(ctx, stageId, stageProgress, entities, isTouchEnabled);
     } else if (state === 'PAUSED') {
@@ -341,6 +409,10 @@ export class UIManager {
       this.drawGameOverScreen(ctx, entities, stageId);
     } else if (state === 'VICTORY') {
       this.drawVictoryScreen(ctx, entities);
+    }
+
+    if (this.showLeaderboard) {
+      this.drawLeaderboardModal(ctx);
     }
 
     ctx.restore();
@@ -888,100 +960,451 @@ export class UIManager {
     ctx.fillText('Press ENTER or click [INSERT COIN / DEPLOY] to begin endless sector assault.', this.width / 2, 515);
   }
 
-  private drawTitleScreen(ctx: CanvasRenderingContext2D): void {
+  private drawMainMenuScreen(ctx: CanvasRenderingContext2D): void {
     // Translucent dark cyber panel
-    ctx.fillStyle = 'rgba(5, 8, 17, 0.85)';
+    ctx.fillStyle = 'rgba(5, 8, 17, 0.88)';
     ctx.fillRect(0, 0, this.width, this.height);
 
     // Nokia 3310 Tribute Banner
     ctx.textAlign = 'center';
-    ctx.font = 'bold 16px "Share Tech Mono", monospace';
+    ctx.font = 'bold 15px "Share Tech Mono", monospace';
     ctx.fillStyle = '#00f0ff';
     ctx.shadowColor = '#00f0ff';
     ctx.shadowBlur = 8;
-    ctx.fillText('--- NOKIA 3310 ARCHIVE // REMASTERED 2026 ---', this.width / 2, 85);
+    ctx.fillText('--- NOKIA 3310 NOSTALGIA ARCHIVE // REMASTERED 2026 ---', this.width / 2, 60);
 
     // Main Title Logo
-    ctx.font = 'bold 56px "Share Tech Mono", monospace';
+    ctx.font = 'bold 50px "Share Tech Mono", monospace';
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = '#00f0ff';
     ctx.shadowBlur = 20;
-    ctx.fillText('SPACE IMPACT', this.width / 2, 150);
+    ctx.fillText('SPACE IMPACT', this.width / 2, 115);
 
-    ctx.font = 'bold 20px "Share Tech Mono", monospace';
+    ctx.font = 'bold 16px "Share Tech Mono", monospace';
     ctx.fillStyle = '#ff0055';
     ctx.shadowColor = '#ff0055';
-    ctx.shadowBlur = 12;
-    ctx.fillText('// RETRO-FUTURISTIC VECTOR EDITION //', this.width / 2, 185);
+    ctx.shadowBlur = 10;
+    ctx.fillText('// PVE BOSS GAUNTLET & RETRO ARCADE //', this.width / 2, 142);
 
-    // Blinking Start Prompt
-    const blink = Math.sin(this.time * 5) > 0;
-    if (blink) {
-      ctx.font = 'bold 22px "Share Tech Mono", monospace';
-      ctx.fillStyle = '#00ff66';
-      ctx.shadowColor = '#00ff66';
-      ctx.shadowBlur = 15;
-      ctx.fillText('[ PRESS SPACE OR CLICK TO DEPLOY ]', this.width / 2, 235);
-    }
+    const equipped = shopManager.getEquippedShip();
+    ctx.font = 'bold 13px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#88ddff';
+    ctx.shadowBlur = 0;
+    ctx.fillText(
+      `FIGHTER: ${equipped.name} (${equipped.franchise})  |  CREDITS: ✪ ${shopManager.getGold()}`,
+      this.width / 2,
+      172
+    );
 
-    // Interactive Hangar / Ship Shop Button
-    const shopBtnX = this.width / 2 - 200;
-    const shopBtnY = 255;
-    const shopBtnW = 400;
-    const shopBtnH = 36;
-    ctx.fillStyle = 'rgba(10, 24, 48, 0.9)';
-    ctx.fillRect(shopBtnX, shopBtnY, shopBtnW, shopBtnH);
+    // Menu Action Buttons (x: 260 to 700, width: 420)
+    const btnX = this.width / 2 - 210;
+    const btnW = 420;
+
+    // 1. DEPLOY MISSION (START GAME)
+    const blink = Math.sin(this.time * 6) > 0;
+    ctx.fillStyle = blink ? 'rgba(0, 255, 102, 0.22)' : 'rgba(0, 255, 102, 0.12)';
+    ctx.fillRect(btnX, 198, btnW, 40);
+    ctx.strokeStyle = '#00ff66';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#00ff66';
+    ctx.shadowBlur = blink ? 14 : 6;
+    ctx.strokeRect(btnX, 198, btnW, 40);
+
+    ctx.font = 'bold 18px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#00ff66';
+    ctx.fillText('▶ 1. DEPLOY MISSION [PRESS SPACE]', this.width / 2, 224);
+
+    // 2. STARFIGHTER HANGAR / SHOP
+    ctx.fillStyle = 'rgba(10, 24, 48, 0.85)';
+    ctx.fillRect(btnX, 248, btnW, 36);
     ctx.strokeStyle = '#ffea00';
     ctx.lineWidth = 1.5;
     ctx.shadowColor = '#ffea00';
-    ctx.shadowBlur = 8;
-    ctx.strokeRect(shopBtnX, shopBtnY, shopBtnW, shopBtnH);
-
-    ctx.font = 'bold 15px "Share Tech Mono", monospace';
-    ctx.fillStyle = '#ffea00';
-    ctx.shadowColor = '#ffea00';
     ctx.shadowBlur = 6;
-    ctx.fillText('★ [H] SPACESHIP HANGAR & FLEET REQUISITIONS ★', this.width / 2, shopBtnY + 23);
+    ctx.strokeRect(btnX, 248, btnW, 36);
 
-    const equipped = shopManager.getEquippedShip();
-    ctx.font = '13px "Share Tech Mono", monospace';
-    ctx.fillStyle = '#88ddff';
-    ctx.shadowBlur = 0;
-    ctx.fillText(`VESSEL: ${equipped.name}  |  CREDITS: ✪ ${shopManager.getGold()}`, this.width / 2, 312);
+    ctx.font = 'bold 14px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffea00';
+    ctx.fillText('✈ 2. FLEET HANGAR & WEAPONS SHOP [H]', this.width / 2, 271);
 
-    // High Scores Hall of Fame
-    ctx.font = 'bold 15px "Share Tech Mono", monospace';
+    // 3. CONTROLLER & SETTINGS
+    ctx.fillStyle = 'rgba(10, 24, 48, 0.85)';
+    ctx.fillRect(btnX, 292, btnW, 36);
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 6;
+    ctx.strokeRect(btnX, 292, btnW, 36);
+
+    ctx.font = 'bold 14px "Share Tech Mono", monospace';
     ctx.fillStyle = '#00f0ff';
-    ctx.fillText('=== HALL OF FAME // TOP 5 ===', this.width / 2, 342);
+    ctx.fillText('⚙ 3. CONTROLLER & CUSTOM CONTROLS SETTINGS', this.width / 2, 315);
 
-    const scores = highScoreManager.getHighScores();
-    ctx.font = '13px "Share Tech Mono", monospace';
-    scores.forEach((rec: HighScoreRecord, idx: number) => {
-      const rowY = 366 + idx * 22;
-      ctx.fillStyle = idx === 0 ? '#ffea00' : '#e0f8ff';
-      ctx.shadowColor = idx === 0 ? '#ffea00' : '#00f0ff';
-      ctx.shadowBlur = idx === 0 ? 8 : 4;
-      ctx.fillText(
-        `#${idx + 1}  [${rec.initials}]  ${rec.score.toString().padStart(6, '0')} PTS  (STAGE ${rec.stage})`,
-        this.width / 2,
-        rowY
-      );
-    });
+    // 4. NOSTALGIC SCREEN FILTER
+    const activeFilter = filterManager.getActiveLevelFilter();
+    const filterName =
+      activeFilter === 'NOKIA_CLASSIC'
+        ? 'NOKIA 3310 GREEN'
+        : activeFilter === 'NOKIA_BLUE'
+        ? 'NOKIA BLUE 3330'
+        : activeFilter === 'GAMEBOY_DMG'
+        ? 'GAME BOY DMG'
+        : activeFilter === 'CYBER_AMBER'
+        ? 'CYBER AMBER'
+        : activeFilter === 'MODERN_OLED'
+        ? 'MODERN OLED'
+        : 'RANDOM PER LEVEL';
+
+    ctx.fillStyle = 'rgba(10, 24, 48, 0.85)';
+    ctx.fillRect(btnX, 336, btnW, 36);
+    ctx.strokeStyle = '#00ffaa';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#00ffaa';
+    ctx.shadowBlur = 6;
+    ctx.strokeRect(btnX, 336, btnW, 36);
+
+    ctx.font = 'bold 14px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#00ffaa';
+    ctx.fillText(`📺 4. SCREEN FILTER: [${filterName}] (CLICK TO CYCLE)`, this.width / 2, 359);
+
+    // 5. GLOBAL HALL OF FAME
+    ctx.fillStyle = 'rgba(10, 24, 48, 0.85)';
+    ctx.fillRect(btnX, 380, btnW, 36);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 6;
+    ctx.strokeRect(btnX, 380, btnW, 36);
+
+    ctx.font = 'bold 14px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('🏆 5. GLOBAL HALL OF FAME (REALTIME LEADERBOARD)', this.width / 2, 403);
+
+    // 6. CALLSIGN / PILOT
+    ctx.fillStyle = 'rgba(10, 24, 48, 0.85)';
+    ctx.fillRect(btnX, 424, btnW, 36);
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#a855f7';
+    ctx.shadowBlur = 6;
+    ctx.strokeRect(btnX, 424, btnW, 36);
+
+    ctx.font = 'bold 14px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#c084fc';
+    ctx.fillText(`👤 6. PILOT CALLSIGN: [${this.pilotInput}] (CLICK TO EDIT)`, this.width / 2, 447);
 
     // Controls Legend Footer
-    ctx.font = '13px "Share Tech Mono", monospace';
+    ctx.font = '12px "Share Tech Mono", monospace';
     ctx.fillStyle = '#8899aa';
     ctx.shadowBlur = 0;
     ctx.fillText(
-      'CONTROLS: WASD / Arrows = Move  |  Space / Z = Laser  |  X / Shift = Secondary  |  Tab = Cycle  |  ESC = Pause',
+      'CONTROLS: WASD / Arrows = Move  |  Space / Z = Primary  |  X / Shift = Special  |  Tab = Cycle Special  |  ESC = Pause',
       this.width / 2,
       495
     );
-    ctx.fillText(
-      'GAMEPAD: Left Stick / D-Pad = Move  |  A / X = Laser  |  B / Y = Secondary  |  Start = Pause',
-      this.width / 2,
-      515
-    );
+    ctx.fillText('TOUCH / APK: On-screen virtual joystick & buttons  |  GAMEPAD: Auto-detected plug & play', this.width / 2, 515);
+  }
+
+  private handleSettingsClick(x: number, y: number): void {
+    const mY = 30;
+    // 1. Button Size (Scale) row: y ~ mY + 75 to mY + 105
+    if (y >= mY + 75 && y <= mY + 110) {
+      const scales = [0.5, 0.75, 1.0, 1.25, 1.5];
+      for (let i = 0; i < 5; i++) {
+        const bx = 200 + i * 115;
+        if (x >= bx && x <= bx + 105) {
+          this.inputHandler?.setTouchScale(scales[i]);
+          soundSynthesizer.playUiBeep();
+          return;
+        }
+      }
+    }
+
+    // 2. Controller Skin row: y ~ mY + 145 to mY + 180
+    if (y >= mY + 145 && y <= mY + 180) {
+      const skins: ControllerSkin[] = [
+        'NOKIA_3310',
+        'CYBERPUNK_NEON',
+        'STAR_WARS_IMPERIAL',
+        'STAR_TREK_LCARS',
+        'ARCADE_CARBON_GOLD',
+      ];
+      for (let i = 0; i < 5; i++) {
+        const bx = 200 + i * 115;
+        if (x >= bx && x <= bx + 105) {
+          this.inputHandler?.setControllerSkin(skins[i]);
+          soundSynthesizer.playPowerup();
+          return;
+        }
+      }
+    }
+
+    // 3. Screen Filter row: y ~ mY + 215 to mY + 250
+    if (y >= mY + 215 && y <= mY + 250) {
+      const filters: ScreenFilter[] = [
+        'NOKIA_CLASSIC',
+        'NOKIA_BLUE',
+        'GAMEBOY_DMG',
+        'CYBER_AMBER',
+        'MODERN_OLED',
+        'RANDOM_PER_LEVEL',
+      ];
+      for (let i = 0; i < 6; i++) {
+        const bx = 180 + i * 98;
+        if (x >= bx && x <= bx + 92) {
+          filterManager.setFilter(filters[i]);
+          soundSynthesizer.playUiBeep();
+          return;
+        }
+      }
+    }
+
+    // 4. Quick Toggles: y ~ mY + 285 to mY + 325
+    if (y >= mY + 285 && y <= mY + 325) {
+      if (x >= 210 && x <= 440) {
+        this.callbacks?.onToggleTouch();
+        soundSynthesizer.playUiBeep();
+        return;
+      }
+      if (x >= 510 && x <= 740) {
+        this.callbacks?.onToggleMute();
+        soundSynthesizer.playUiBeep();
+        return;
+      }
+    }
+
+    // 5. Close / Save & Return: y ~ mY + 375 to mY + 420
+    if (x >= 240 && x <= 720 && y >= mY + 375 && y <= mY + 420) {
+      this.closeSettings();
+      return;
+    }
+  }
+
+  private drawSettingsModal(ctx: CanvasRenderingContext2D): void {
+    // Backdrop dim
+    ctx.fillStyle = 'rgba(3, 7, 18, 0.92)';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    const mX = 140;
+    const mY = 30;
+    const mW = 680;
+    const mH = 475;
+
+    ctx.fillStyle = 'rgba(10, 20, 40, 0.96)';
+    ctx.fillRect(mX, mY, mW, mH);
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 15;
+    ctx.strokeRect(mX, mY, mW, mH);
+
+    // Modal Title
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 20px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#00f0ff';
+    ctx.fillText('// CONTROLLER CUSTOMIZATION & TACTICAL SETTINGS //', this.width / 2, mY + 32);
+
+    // SECTION 1: BUTTON SIZE / SCALE (MINIMIZE TO PREFERENCE)
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 13px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffea00';
+    ctx.shadowBlur = 4;
+    ctx.fillText('1. TOUCH BUTTON SIZE / SCALE (MINIMIZE TO PREVENT BLOCKING VIEW):', mX + 30, mY + 65);
+
+    const curScale = this.inputHandler?.touchScale ?? 1.0;
+    const scales = [
+      { label: '50% (MIN)', val: 0.5 },
+      { label: '75% (SML)', val: 0.75 },
+      { label: '100% (STD)', val: 1.0 },
+      { label: '125% (LRG)', val: 1.25 },
+      { label: '150% (MAX)', val: 1.5 },
+    ];
+    for (let i = 0; i < scales.length; i++) {
+      const s = scales[i];
+      const bx = 200 + i * 115;
+      const by = mY + 75;
+      const isAct = Math.abs(curScale - s.val) < 0.05;
+      ctx.fillStyle = isAct ? 'rgba(0, 255, 102, 0.25)' : 'rgba(15, 30, 60, 0.8)';
+      ctx.fillRect(bx, by, 105, 30);
+      ctx.strokeStyle = isAct ? '#00ff66' : '#38bdf8';
+      ctx.lineWidth = isAct ? 2 : 1;
+      ctx.strokeRect(bx, by, 105, 30);
+
+      ctx.textAlign = 'center';
+      ctx.font = isAct ? 'bold 12px "Share Tech Mono", monospace' : '11px "Share Tech Mono", monospace';
+      ctx.fillStyle = isAct ? '#00ff66' : '#cbd5e1';
+      ctx.fillText(s.label, bx + 52, by + 19);
+    }
+
+    // SECTION 2: 5 CONTROLLER SKINS
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 13px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffea00';
+    ctx.fillText('2. CONTROLLER THEME SKIN (5 UNIQUE RETRO & SCI-FI STYLES):', mX + 30, mY + 135);
+
+    const curSkin = this.inputHandler?.controllerSkin ?? 'NOKIA_3310';
+    const skins: { name: string; id: ControllerSkin }[] = [
+      { name: '1. NOKIA 3310', id: 'NOKIA_3310' },
+      { name: '2. CYBER NEON', id: 'CYBERPUNK_NEON' },
+      { name: '3. IMPERIAL', id: 'STAR_WARS_IMPERIAL' },
+      { name: '4. LCARS TREK', id: 'STAR_TREK_LCARS' },
+      { name: '5. CARBON GOLD', id: 'ARCADE_CARBON_GOLD' },
+    ];
+    for (let i = 0; i < skins.length; i++) {
+      const sk = skins[i];
+      const bx = 200 + i * 115;
+      const by = mY + 145;
+      const isAct = curSkin === sk.id;
+      ctx.fillStyle = isAct ? 'rgba(0, 240, 255, 0.25)' : 'rgba(15, 30, 60, 0.8)';
+      ctx.fillRect(bx, by, 105, 30);
+      ctx.strokeStyle = isAct ? '#00f0ff' : '#475569';
+      ctx.lineWidth = isAct ? 2 : 1;
+      ctx.strokeRect(bx, by, 105, 30);
+
+      ctx.textAlign = 'center';
+      ctx.font = isAct ? 'bold 11px "Share Tech Mono", monospace' : '10px "Share Tech Mono", monospace';
+      ctx.fillStyle = isAct ? '#00f0ff' : '#94a3b8';
+      ctx.fillText(sk.name, bx + 52, by + 19);
+    }
+
+    // SECTION 3: RETRO SCREEN FILTER
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 13px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffea00';
+    ctx.fillText('3. NOSTALGIC SCREEN FILTER (IMMERSIVE RETRO LCD & CRT SHADERS):', mX + 30, mY + 205);
+
+    const curFilter = filterManager.getFilter();
+    const filters: { name: string; id: ScreenFilter }[] = [
+      { name: 'NOKIA GREEN', id: 'NOKIA_CLASSIC' },
+      { name: 'NOKIA BLUE', id: 'NOKIA_BLUE' },
+      { name: 'GAME BOY', id: 'GAMEBOY_DMG' },
+      { name: 'CYBER AMBER', id: 'CYBER_AMBER' },
+      { name: 'MODERN OLED', id: 'MODERN_OLED' },
+      { name: 'RANDOM/LVL', id: 'RANDOM_PER_LEVEL' },
+    ];
+    for (let i = 0; i < filters.length; i++) {
+      const fl = filters[i];
+      const bx = 180 + i * 98;
+      const by = mY + 215;
+      const isAct = curFilter === fl.id;
+      ctx.fillStyle = isAct ? 'rgba(0, 255, 170, 0.25)' : 'rgba(15, 30, 60, 0.8)';
+      ctx.fillRect(bx, by, 92, 30);
+      ctx.strokeStyle = isAct ? '#00ffaa' : '#475569';
+      ctx.lineWidth = isAct ? 2 : 1;
+      ctx.strokeRect(bx, by, 92, 30);
+
+      ctx.textAlign = 'center';
+      ctx.font = isAct ? 'bold 10px "Share Tech Mono", monospace' : '10px "Share Tech Mono", monospace';
+      ctx.fillStyle = isAct ? '#00ffaa' : '#94a3b8';
+      ctx.fillText(fl.name, bx + 46, by + 19);
+    }
+
+    // SECTION 4: TOGGLES
+    ctx.textAlign = 'center';
+    const isTouchOn = this.inputHandler?.isTouchEnabled ?? false;
+    ctx.fillStyle = isTouchOn ? 'rgba(0, 255, 102, 0.2)' : 'rgba(30, 41, 59, 0.8)';
+    ctx.fillRect(210, mY + 285, 230, 36);
+    ctx.strokeStyle = isTouchOn ? '#00ff66' : '#64748b';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(210, mY + 285, 230, 36);
+    ctx.font = 'bold 13px "Share Tech Mono", monospace';
+    ctx.fillStyle = isTouchOn ? '#00ff66' : '#94a3b8';
+    ctx.fillText(`TOUCH OVERLAY: ${isTouchOn ? 'ENABLED' : 'DISABLED'}`, 325, mY + 308);
+
+    const isMuted = soundSynthesizer.getIsMuted();
+    ctx.fillStyle = isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(0, 240, 255, 0.2)';
+    ctx.fillRect(510, mY + 285, 230, 36);
+    ctx.strokeStyle = isMuted ? '#ef4444' : '#00f0ff';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(510, mY + 285, 230, 36);
+    ctx.font = 'bold 13px "Share Tech Mono", monospace';
+    ctx.fillStyle = isMuted ? '#f87171' : '#00f0ff';
+    ctx.fillText(`AUDIO SYNTHESIZER: ${isMuted ? 'MUTED' : 'ACTIVE'}`, 625, mY + 308);
+
+    // SECTION 5: CLOSE / SAVE BUTTON
+    const saveBtnX = 240;
+    const saveBtnY = mY + 375;
+    const saveBtnW = 480;
+    const saveBtnH = 42;
+
+    ctx.fillStyle = 'rgba(0, 240, 255, 0.2)';
+    ctx.fillRect(saveBtnX, saveBtnY, saveBtnW, saveBtnH);
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 12;
+    ctx.strokeRect(saveBtnX, saveBtnY, saveBtnW, saveBtnH);
+
+    ctx.font = 'bold 17px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('✓ SAVE PREFERENCES & RETURN TO MENU', saveBtnX + saveBtnW / 2, saveBtnY + 27);
+  }
+
+  private drawLeaderboardModal(ctx: CanvasRenderingContext2D): void {
+    ctx.fillStyle = 'rgba(3, 7, 18, 0.92)';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    const mX = 180;
+    const mY = 40;
+    const mW = 600;
+    const mH = 460;
+
+    ctx.fillStyle = 'rgba(10, 20, 40, 0.95)';
+    ctx.fillRect(mX, mY, mW, mH);
+    ctx.strokeStyle = '#ffea00';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#ffea00';
+    ctx.shadowBlur = 12;
+    ctx.strokeRect(mX, mY, mW, mH);
+
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 20px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffea00';
+    ctx.fillText('★ GLOBAL ARCADE HALL OF FAME (REALTIME CLOUD) ★', this.width / 2, mY + 36);
+
+    ctx.font = '12px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#88ddff';
+    ctx.fillText('LIVE SUPABASE CLOUD DATABASE // TOP PILOTS WORLDWIDE', this.width / 2, mY + 58);
+
+    // Scores list
+    const scores = highScoreManager.getHighScores();
+    for (let i = 0; i < Math.min(8, scores.length); i++) {
+      const rec = scores[i];
+      const rY = mY + 95 + i * 36;
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.2)';
+      ctx.fillRect(mX + 25, rY - 18, mW - 50, 30);
+
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 15px "Share Tech Mono", monospace';
+      ctx.fillStyle = i === 0 ? '#ffea00' : i === 1 ? '#00f0ff' : i === 2 ? '#00ff66' : '#cbd5e1';
+      ctx.fillText(`#${i + 1}  ${rec.initials}`, mX + 45, rY + 4);
+
+      ctx.textAlign = 'center';
+      ctx.font = '13px "Share Tech Mono", monospace';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`SECTOR ${rec.stage}`, this.width / 2, rY + 4);
+
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 16px "Share Tech Mono", monospace';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`${rec.score.toLocaleString()} PTS`, mX + mW - 45, rY + 4);
+    }
+
+    // Close button
+    const cBtnX = 260;
+    const cBtnY = mY + 405;
+    const cBtnW = 440;
+    const cBtnH = 36;
+    ctx.fillStyle = 'rgba(255, 234, 0, 0.18)';
+    ctx.fillRect(cBtnX, cBtnY, cBtnW, cBtnH);
+    ctx.strokeStyle = '#ffea00';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(cBtnX, cBtnY, cBtnW, cBtnH);
+
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 15px "Share Tech Mono", monospace';
+    ctx.fillStyle = '#ffea00';
+    ctx.fillText('[ CLICK ANYWHERE TO CLOSE ]', this.width / 2, cBtnY + 23);
   }
 
   /**
@@ -1095,36 +1518,79 @@ export class UIManager {
       ctx.textAlign = 'left';
     });
 
-    // Bottom HUD Bar: Hull Integrity & Secondary Weapons
-    const botGrad = ctx.createLinearGradient(0, this.height - 50, 0, this.height);
+    // Bottom HUD Bar: 5 Energy Cores Chance System & Secondary Weapons
+    const botGrad = ctx.createLinearGradient(0, this.height - 52, 0, this.height);
     botGrad.addColorStop(0, 'rgba(3, 7, 18, 0.0)');
-    botGrad.addColorStop(1, 'rgba(3, 7, 18, 0.9)');
+    botGrad.addColorStop(1, 'rgba(3, 7, 18, 0.95)');
     ctx.fillStyle = botGrad;
-    ctx.fillRect(0, this.height - 50, this.width, 50);
+    ctx.fillRect(0, this.height - 52, this.width, 52);
 
     ctx.textAlign = 'left';
-    ctx.font = 'bold 15px "Share Tech Mono", monospace';
+    ctx.font = 'bold 13px "Share Tech Mono", monospace';
     ctx.fillStyle = '#00f0ff';
-    ctx.fillText('HULL:', 25, this.height - 20);
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 6;
+    ctx.fillText('ENERGY CORES:', 25, this.height - 18);
 
-    const hpBarW = 160;
-    const hpBarH = 14;
-    const hpBarX = 75;
-    const hpBarY = this.height - 32;
-    const hpRatio = Math.max(0, entities.player.health / entities.player.maxHealth);
+    const player = entities.player;
+    const startX = 135;
+    const cellY = this.height - 29;
+    const spacing = 28;
 
-    ctx.strokeStyle = '#00f0ff';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(hpBarX, hpBarY, hpBarW, hpBarH);
+    for (let i = 0; i < 5; i++) {
+      const cx = startX + i * spacing + 10;
+      const cy = cellY + 9;
+      const isFilled = i < player.lives;
 
-    ctx.fillStyle = hpRatio > 0.5 ? '#00ff66' : hpRatio > 0.25 ? '#ffea00' : '#ff0033';
-    ctx.shadowColor = ctx.fillStyle;
-    ctx.shadowBlur = 8;
-    ctx.fillRect(hpBarX + 2, hpBarY + 2, (hpBarW - 4) * hpRatio, hpBarH - 4);
+      ctx.save();
+      // Draw procedural hexagonal energy capsule logo (NOT a heart!)
+      ctx.beginPath();
+      const r = 10;
+      for (let a = 0; a < 6; a++) {
+        const angle = (a * Math.PI) / 3;
+        const hx = cx + Math.cos(angle) * r;
+        const hy = cy + Math.sin(angle) * r;
+        if (a === 0) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
+      }
+      ctx.closePath();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 12px "Share Tech Mono", monospace';
-    ctx.fillText(`${Math.ceil(entities.player.health)}%`, hpBarX + hpBarW + 10, this.height - 20);
+      if (isFilled) {
+        // Active Energy Core
+        const isCritical = player.lives === 1;
+        ctx.fillStyle = isCritical ? 'rgba(255, 0, 85, 0.45)' : 'rgba(0, 240, 255, 0.35)';
+        ctx.fill();
+        ctx.strokeStyle = isCritical ? '#ff0055' : '#00f0ff';
+        ctx.lineWidth = 1.8;
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = 8;
+        ctx.stroke();
+
+        // Glowing core power bar
+        ctx.fillStyle = isCritical ? '#ff0055' : '#00ffaa';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Depleted Core
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(71, 85, 105, 0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // 2.0s Invulnerability Shield Matrix Banner
+    if (player.isInvulnerable) {
+      const remaining = Math.max(0, player.invulnerabilityTimer).toFixed(1);
+      ctx.font = 'bold 12px "Share Tech Mono", monospace';
+      ctx.fillStyle = '#00ffaa';
+      ctx.shadowColor = '#00ffaa';
+      ctx.shadowBlur = 10;
+      ctx.fillText(`[🛡️ SHIELD MATRIX: ${remaining}s]`, startX + 5 * spacing + 12, this.height - 18);
+    }
 
     // Player Gold Balance in HUD
     ctx.textAlign = 'center';
@@ -1134,7 +1600,6 @@ export class UIManager {
     ctx.shadowBlur = 8;
     ctx.fillText(`GOLD: ✪ ${shopManager.getGold()}`, this.width / 2, this.height - 20);
 
-    const player = entities.player;
     const activeSec = player.activeSecondary;
     const inv = player.inventory[activeSec];
     const secName =

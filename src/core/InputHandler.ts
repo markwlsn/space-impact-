@@ -1,4 +1,4 @@
-import { InputState, Vector2D } from '../types';
+import { InputState, Vector2D, ControllerSkin } from '../types';
 import { DeviceDetector } from './DeviceDetector';
 
 export class InputHandler {
@@ -17,7 +17,7 @@ export class InputHandler {
   private pauseTriggered: boolean = false;
   private cycleSecondaryTriggered: boolean = false;
 
-  // Touch Virtual Controls state
+  // Touch Virtual Controls state & Customization
   public isTouchEnabled: boolean = false;
   public virtualJoystickPos: Vector2D = { x: 0, y: 0 };
   public virtualTouchPrimary: boolean = false;
@@ -25,9 +25,64 @@ export class InputHandler {
   public virtualTouchCycle: boolean = false;
   public virtualTouchPause: boolean = false;
 
+  // Controller Customization (FR-Touch)
+  public controllerSkin: ControllerSkin = 'NOKIA_3310';
+  public touchScale: number = 1.0; // 0.5 to 1.5
+  public touchOpacity: number = 0.85; // 0.3 to 1.0
+
   constructor() {
     this.setupKeyboardListeners();
     this.initDeviceDetection();
+    this.loadCustomizationSettings();
+  }
+
+  private loadCustomizationSettings(): void {
+    try {
+      const savedSkin = localStorage.getItem('space_impact_controller_skin') as ControllerSkin | null;
+      if (savedSkin) this.controllerSkin = savedSkin;
+
+      const savedScale = localStorage.getItem('space_impact_controller_scale');
+      if (savedScale) this.touchScale = Math.max(0.5, Math.min(1.5, parseFloat(savedScale)));
+
+      const savedOpacity = localStorage.getItem('space_impact_controller_opacity');
+      if (savedOpacity) this.touchOpacity = Math.max(0.3, Math.min(1.0, parseFloat(savedOpacity)));
+
+      this.applyDOMStyles();
+    } catch (e) {
+      console.warn('Could not load controller customization settings:', e);
+    }
+  }
+
+  public setControllerSkin(skin: ControllerSkin): void {
+    this.controllerSkin = skin;
+    try {
+      localStorage.setItem('space_impact_controller_skin', skin);
+    } catch {}
+    this.applyDOMStyles();
+  }
+
+  public setTouchScale(scale: number): void {
+    this.touchScale = Math.max(0.5, Math.min(1.5, scale));
+    try {
+      localStorage.setItem('space_impact_controller_scale', this.touchScale.toString());
+    } catch {}
+    this.applyDOMStyles();
+  }
+
+  public setTouchOpacity(opacity: number): void {
+    this.touchOpacity = Math.max(0.3, Math.min(1.0, opacity));
+    try {
+      localStorage.setItem('space_impact_controller_opacity', this.touchOpacity.toString());
+    } catch {}
+    this.applyDOMStyles();
+  }
+
+  public applyDOMStyles(): void {
+    if (typeof document !== 'undefined') {
+      document.body.dataset.controllerSkin = this.controllerSkin;
+      document.documentElement.style.setProperty('--touch-scale', this.touchScale.toString());
+      document.documentElement.style.setProperty('--touch-opacity', this.touchOpacity.toString());
+    }
   }
 
   private initDeviceDetection(): void {

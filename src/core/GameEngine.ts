@@ -10,6 +10,9 @@ import { UIManager } from '../ui/UIManager';
 import { Enemy } from '../entities/Enemy';
 import { BossMollusk } from '../entities/BossMollusk';
 import { BossSentinel } from '../entities/BossSentinel';
+import { BossLeviathan } from '../entities/BossLeviathan';
+import { BossQuantum } from '../entities/BossQuantum';
+import { filterManager } from '../graphics/FilterManager';
 import { highScoreManager } from '../ui/HighScoreManager';
 
 import { shopManager } from '../ui/ShopManager';
@@ -25,7 +28,7 @@ export class GameEngine {
   private ui: UIManager;
 
   private state: GameState = 'CINEMATIC_INTRO';
-  private previousState: GameState = 'TITLE';
+  private previousState: GameState = 'MAIN_MENU';
   private stageId: StageId = 1;
   private stageTimeline: number = 0;
   private readonly stageLength: number = 36.0; // Seconds before boss spawns
@@ -61,6 +64,7 @@ export class GameEngine {
     this.input = new InputHandler();
     this.entities = new EntityManager();
     this.ui = new UIManager();
+    this.ui.setInputHandler(this.input);
 
     this.setupUIBindings();
   }
@@ -79,8 +83,15 @@ export class GameEngine {
         this.state = 'SHOP';
       },
       onCloseShop: () => {
-        this.state = this.previousState === 'PAUSED' ? 'PAUSED' : 'TITLE';
+        this.state = this.previousState === 'PAUSED' ? 'PAUSED' : 'MAIN_MENU';
         this.entities.player.applyShip(shopManager.getEquippedShip());
+      },
+      onOpenSettings: () => {
+        this.previousState = this.state;
+        this.state = 'SETTINGS';
+      },
+      onCloseSettings: () => {
+        this.state = this.previousState === 'PAUSED' ? 'PAUSED' : 'MAIN_MENU';
       },
     });
 
@@ -93,12 +104,12 @@ export class GameEngine {
   }
 
   public skipIntro(): void {
-    this.state = 'PILOT_ENTRY';
+    this.state = 'MAIN_MENU';
     soundSynthesizer.playUiBeep();
   }
 
   public onConfirmPilot(_callsign: string): void {
-    this.startGame();
+    this.state = 'MAIN_MENU';
   }
 
   public start(): void {
@@ -209,8 +220,8 @@ export class GameEngine {
       if (this.ui.introTimer >= 30.0) {
         this.skipIntro();
       }
-    } else if (this.state === 'TITLE') {
-      // Space or fire button starts game
+    } else if (this.state === 'MAIN_MENU' || this.state === 'TITLE') {
+      // Space or primary fire button starts game
       if (inputState.primaryFire) {
         this.startGame();
       }
@@ -282,90 +293,103 @@ export class GameEngine {
   private updateWaveSpawner(timeline: number): void {
     if (this.bossSpawned) return;
 
-    const isSpaceSector = this.stageId % 2 === 1;
+    const sectorType = (this.stageId - 1) % 4; // 0: Mollusk space, 1: Fortress, 2: Wyrm nebula, 3: Quantum void
+    const isDeepLevel = this.stageId >= 5;
 
-    if (isSpaceSector) {
-      // --- ENDLESS DEEP SPACE SECTOR TIMELINE ---
-      if (timeline >= 1.0 && timeline < 1.05) {
-        this.entities.spawnEnemy(new Enemy('scout_1', 980, 150, 'SCOUT'));
-        this.entities.spawnEnemy(new Enemy('scout_2', 1040, 390, 'SCOUT'));
+    // --- Wave Enemies Spawn Schedule ---
+    if (timeline >= 1.0 && timeline < 1.05) {
+      this.entities.spawnEnemy(new Enemy('scout_1', 980, 150, 'SCOUT'));
+      this.entities.spawnEnemy(new Enemy('scout_2', 1040, 390, 'SCOUT'));
+      if (isDeepLevel) {
+        this.entities.spawnEnemy(new Enemy('deep_scout', 1080, 270, 'SCOUT', true));
       }
-      if (timeline >= 5.5 && timeline < 5.55) {
-        for (let i = 0; i < 4; i++) {
-          this.entities.spawnEnemy(new Enemy(`swarmer_${i}`, 980 + i * 50, 120 + i * 80, 'SWARMER'));
-        }
+    }
+    if (timeline >= 5.5 && timeline < 5.55) {
+      const swarmerCount = isDeepLevel ? 6 : 4;
+      for (let i = 0; i < swarmerCount; i++) {
+        this.entities.spawnEnemy(new Enemy(`swarmer_${i}`, 980 + i * 45, 100 + i * 65, 'SWARMER'));
       }
-      if (timeline >= 11.0 && timeline < 11.05) {
-        this.entities.spawnEnemy(new Enemy('beetle_1', 990, 270, 'BEETLE'));
-        this.entities.spawnEnemy(new Enemy('scout_elite', 1040, 180, 'SCOUT', true));
+    }
+    if (timeline >= 11.0 && timeline < 11.05) {
+      this.entities.spawnEnemy(new Enemy('beetle_1', 990, 270, 'BEETLE'));
+      this.entities.spawnEnemy(new Enemy('scout_elite', 1040, 180, 'SCOUT', true));
+      if (sectorType === 1 || sectorType === 3 || isDeepLevel) {
+        this.entities.spawnEnemy(new Enemy('gate_geo_1', 1020, 270, 'LASER_GATE'));
       }
-      if (timeline >= 17.5 && timeline < 17.55) {
-        this.entities.spawnEnemy(new Enemy('tentacle_1', 990, 140, 'TENTACLE'));
-        this.entities.spawnEnemy(new Enemy('tentacle_2', 1030, 400, 'TENTACLE'));
+    }
+    if (timeline >= 17.5 && timeline < 17.55) {
+      this.entities.spawnEnemy(new Enemy('tentacle_1', 990, 140, 'TENTACLE'));
+      this.entities.spawnEnemy(new Enemy('tentacle_2', 1030, 400, 'TENTACLE'));
+      if (isDeepLevel) {
+        this.entities.spawnEnemy(new Enemy('turret_deep', 1010, 270, 'FORTRESS_TURRET'));
       }
-      if (timeline >= 24.0 && timeline < 24.05) {
-        this.entities.spawnEnemy(new Enemy('beetle_2', 990, 200, 'BEETLE'));
-        this.entities.spawnEnemy(new Enemy('beetle_3', 1020, 340, 'BEETLE'));
-        this.entities.spawnEnemy(new Enemy('scout_3', 1050, 270, 'SCOUT', true));
+    }
+    if (timeline >= 24.0 && timeline < 24.05) {
+      this.entities.spawnEnemy(new Enemy('beetle_2', 990, 200, 'BEETLE'));
+      this.entities.spawnEnemy(new Enemy('beetle_3', 1020, 340, 'BEETLE'));
+      this.entities.spawnEnemy(new Enemy('scout_3', 1050, 270, 'SCOUT', true));
+      if (isDeepLevel) {
+        this.entities.spawnEnemy(new Enemy('gate_geo_2', 1010, 270, 'LASER_GATE'));
       }
-      // Boss Mollusk
-      if (timeline >= 34.0 && !this.bossSpawned) {
-        this.bossSpawned = true;
-        soundSynthesizer.setMusicTheme('BOSS');
-        soundSynthesizer.playBossAlarm();
+    }
+
+    // --- BOSS ENCOUNTER SPAWN (Timeline >= 34.0s) ---
+    if (timeline >= 34.0 && !this.bossSpawned) {
+      this.bossSpawned = true;
+      soundSynthesizer.setMusicTheme('BOSS');
+      soundSynthesizer.playBossAlarm();
+
+      const hpMult = 1 + (this.stageId - 1) * 0.35;
+
+      if (sectorType === 0) {
+        // Sector 1: Cybernetic Mollusk
         const boss = new BossMollusk(860, 270);
         if (this.stageId > 1) {
-          const mult = 1 + (this.stageId - 1) * 0.35;
-          boss.maxHealth = Math.round(boss.maxHealth * mult);
+          boss.maxHealth = Math.round(boss.maxHealth * hpMult);
           boss.health = boss.maxHealth;
-          boss.bossName = `CYBERNETIC MOLLUSK MK.${Math.ceil(this.stageId / 2)}`;
+          boss.bossName = `CYBERNETIC MOLLUSK MK.${Math.ceil(this.stageId / 4)}`;
         }
         this.entities.setBoss(boss);
         this.particleSystem.emitFloatingText(480, 180, `WARNING: ${boss.bossName} APPROACHING`, '#ff0055');
-      }
-    } else {
-      // --- ENDLESS CYBER FORTRESS SECTOR TIMELINE ---
-      if (timeline >= 1.0 && timeline < 1.05) {
-        this.entities.spawnEnemy(new Enemy('gate_1', 1020, 270, 'LASER_GATE'));
-        this.entities.spawnEnemy(new Enemy('scout_c1', 1080, 160, 'SCOUT'));
-        this.entities.spawnEnemy(new Enemy('scout_c2', 1140, 380, 'SCOUT'));
-      }
-      if (timeline >= 6.5 && timeline < 6.55) {
-        this.entities.spawnEnemy(new Enemy('turret_1', 990, 90, 'FORTRESS_TURRET'));
-        this.entities.spawnEnemy(new Enemy('turret_2', 990, 450, 'FORTRESS_TURRET'));
-        for (let i = 0; i < 3; i++) {
-          this.entities.spawnEnemy(new Enemy(`swarmer_c${i}`, 1040 + i * 60, 270, 'SWARMER'));
-        }
-      }
-      if (timeline >= 13.0 && timeline < 13.05) {
-        this.entities.spawnEnemy(new Enemy('gate_2', 1000, 270, 'LASER_GATE'));
-        this.entities.spawnEnemy(new Enemy('gate_3', 1180, 270, 'LASER_GATE'));
-        this.entities.spawnEnemy(new Enemy('beetle_gold', 1090, 270, 'BEETLE', true));
-      }
-      if (timeline >= 21.0 && timeline < 21.05) {
-        this.entities.spawnEnemy(new Enemy('turret_3', 990, 130, 'FORTRESS_TURRET'));
-        this.entities.spawnEnemy(new Enemy('turret_4', 990, 410, 'FORTRESS_TURRET'));
-        this.entities.spawnEnemy(new Enemy('tentacle_c1', 1050, 270, 'TENTACLE'));
-      }
-      if (timeline >= 28.5 && timeline < 28.55) {
-        this.entities.spawnEnemy(new Enemy('gate_4', 1020, 270, 'LASER_GATE'));
-        this.entities.spawnEnemy(new Enemy('beetle_c2', 1080, 180, 'BEETLE'));
-        this.entities.spawnEnemy(new Enemy('beetle_c3', 1080, 360, 'BEETLE', true));
-      }
-      // Boss Sentinel
-      if (timeline >= 36.0 && !this.bossSpawned) {
-        this.bossSpawned = true;
-        soundSynthesizer.setMusicTheme('BOSS');
-        soundSynthesizer.playBossAlarm();
+      } else if (sectorType === 1) {
+        // Sector 2: Core Sentinel
         const boss = new BossSentinel(820, 270);
+        boss.maxHealth = Math.round(boss.maxHealth * hpMult);
+        boss.health = boss.maxHealth;
         if (this.stageId > 2) {
-          const mult = 1 + (this.stageId - 2) * 0.35;
-          boss.maxHealth = Math.round(boss.maxHealth * mult);
-          boss.health = boss.maxHealth;
           boss.bossName = `CORE SENTINEL OMEGA-V${this.stageId}`;
         }
         this.entities.setBoss(boss);
         this.particleSystem.emitFloatingText(480, 180, `ALERT: ${boss.bossName} DETECTED`, '#ff0033');
+      } else if (sectorType === 2) {
+        // Sector 3: Astro-Wyrm Leviathan
+        const boss = new BossLeviathan(780, 270);
+        boss.maxHealth = Math.round(boss.maxHealth * hpMult);
+        boss.health = boss.maxHealth;
+        if (this.stageId > 3) {
+          boss.bossName = `ASTRO-WYRM LEVIATHAN MK.${Math.ceil(this.stageId / 4)}`;
+        }
+        this.entities.setBoss(boss);
+        this.particleSystem.emitFloatingText(480, 180, `ALERT: ${boss.bossName} DETECTED`, '#ffaa00');
+      } else {
+        // Sector 4: Quantum Matrix Colossus
+        const boss = new BossQuantum(780, 270);
+        boss.maxHealth = Math.round(boss.maxHealth * hpMult);
+        boss.health = boss.maxHealth;
+        if (this.stageId > 4) {
+          boss.bossName = `QUANTUM MATRIX COLOSSUS MK.${Math.ceil(this.stageId / 4)}`;
+        }
+        this.entities.setBoss(boss);
+        this.particleSystem.emitFloatingText(480, 180, `ALERT: ${boss.bossName} INITIATED`, '#00f0ff');
+      }
+
+      if (isDeepLevel) {
+        this.particleSystem.emitFloatingText(
+          480,
+          220,
+          '⚡ GEOMETRY DASH OVERDRIVE ACTIVE! ⚡',
+          '#ffea00'
+        );
       }
     }
   }
@@ -380,15 +404,35 @@ export class GameEngine {
     this.entities.score += sectorBonus;
     this.particleSystem.emitFloatingText(
       480,
-      230,
+      220,
       `SECTOR ${this.stageId} CLEARED! +${sectorBonus.toLocaleString()} PTS`,
       '#00ff66'
     );
     this.particleSystem.emitFloatingText(
       480,
-      270,
+      255,
       `WARP TO SECTOR ${this.stageId + 1} ENGAGED`,
       '#00f0ff'
+    );
+
+    // Apply Nostalgic Level Screen Filter (Random / Mode per level)
+    const newFilter = filterManager.onSectorWarp(this.stageId + 1);
+    const filterLabel =
+      newFilter === 'NOKIA_CLASSIC'
+        ? 'NOKIA 3310 MONOCHROME LCD'
+        : newFilter === 'NOKIA_BLUE'
+        ? 'NOKIA 3330 BLUE BACKLIGHT'
+        : newFilter === 'GAMEBOY_DMG'
+        ? 'GAME BOY DMG 4-SHADE'
+        : newFilter === 'CYBER_AMBER'
+        ? 'AMBER PHOSPHOR CRT'
+        : 'MODERN FULL COLOR OLED';
+
+    this.particleSystem.emitFloatingText(
+      480,
+      290,
+      `// RETRO DISPLAY MATRIX: ${filterLabel} //`,
+      '#ffea00'
     );
   }
 

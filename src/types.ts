@@ -28,7 +28,26 @@ export type ProjectileKind =
   | 'TURRET_SPREAD'
   | 'PHASER_BEAM'
   | 'PHOTON_TORPEDO'
-  | 'EMERALD_LASER';
+  | 'EMERALD_LASER'
+  | 'DRAGON_BREATH'
+  | 'QUANTUM_PULSE'
+  | 'HOMING_MINE'
+  | 'GEOMETRIC_HAZARD';
+
+export type ControllerSkin =
+  | 'NOKIA_3310'
+  | 'CYBERPUNK_NEON'
+  | 'STAR_WARS_IMPERIAL'
+  | 'STAR_TREK_LCARS'
+  | 'ARCADE_CARBON_GOLD';
+
+export type ScreenFilter =
+  | 'MODERN_OLED'
+  | 'NOKIA_CLASSIC'
+  | 'NOKIA_BLUE'
+  | 'GAMEBOY_DMG'
+  | 'CYBER_AMBER'
+  | 'RANDOM_PER_LEVEL';
 
 export type ShipId =
   | 'NOKIA_VIPER'
@@ -55,8 +74,10 @@ export interface ShipDefinition {
 export type GameState =
   | 'CINEMATIC_INTRO'
   | 'PILOT_ENTRY'
+  | 'MAIN_MENU'
   | 'TITLE'
   | 'SHOP'
+  | 'SETTINGS'
   | 'PLAYING'
   | 'PAUSED'
   | 'STAGE_WARP'
