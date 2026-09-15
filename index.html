@@ -27,16 +27,9 @@
         -webkit-touch-callout: none;
       }
 
-      :root {
-        /* Dynamic responsive 16:9 scaling: Fills maximum available browser window */
-        --available-h: calc(100dvh - 72px);
-        --game-w: min(97vw, calc(var(--available-h) * (16 / 9)));
-        --game-h: calc(var(--game-w) * (9 / 16));
-      }
-
       html, body {
-        width: 100%;
-        height: 100%;
+        width: 100vw;
+        height: 100vh;
         height: 100dvh;
         background: #030712;
         color: #f8fafc;
@@ -44,27 +37,24 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         overflow: hidden;
         overscroll-behavior: none;
-        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-        transition: padding 0.2s ease;
+        padding: 0;
+        margin: 0;
       }
 
       header {
-        width: var(--game-w);
-        max-width: 100vw;
-        padding: 6px 14px;
+        width: 100%;
+        padding: 6px 16px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: rgba(15, 23, 42, 0.92);
-        border: 1px solid rgba(0, 240, 255, 0.25);
-        border-bottom: none;
-        border-radius: 8px 8px 0 0;
+        background: rgba(15, 23, 42, 0.95);
+        border-bottom: 1px solid rgba(0, 240, 255, 0.25);
         backdrop-filter: blur(8px);
         z-index: 20;
-        transition: width 0.15s ease;
+        flex-shrink: 0;
       }
 
       .logo-group {
@@ -142,38 +132,46 @@
         color: #f87171;
       }
 
+      /* =========================================================
+         GAME CONTAINER & CANVAS: FILLS 100% OF THE SCREEN
+         ========================================================= */
       #gameContainer {
         position: relative;
-        width: var(--game-w);
-        height: var(--game-h);
-        max-width: 100vw;
-        aspect-ratio: 16 / 9;
+        width: 100%;
+        flex: 1; /* Automatically consumes 100% of remaining vertical screen height */
         background: #000;
-        box-shadow: 0 0 45px rgba(0, 240, 255, 0.25);
-        border: 1px solid rgba(0, 240, 255, 0.35);
         display: flex;
         justify-content: center;
         align-items: center;
-        transition: width 0.15s ease, height 0.15s ease;
+        overflow: hidden;
       }
 
-      /* Stretch Mode: Fills full viewport without letterboxing */
-      body.mode-fill #gameContainer {
-        width: 100vw !important;
-        height: calc(100dvh - 72px) !important;
-        aspect-ratio: auto !important;
-      }
-
-      body.mode-fill header,
-      body.mode-fill footer {
-        width: 100vw !important;
-      }
-
+      /* Mode 1 (Default): Fill Whole Screen Edge-to-Edge */
       canvas#gameCanvas {
         width: 100%;
         height: 100%;
         display: block;
+        object-fit: fill; /* Fills 100% of the screen with zero black sidebars */
         image-rendering: auto;
+      }
+
+      /* Mode 2: Zoom Cover (Fills screen edge-to-edge preserving 1:1 circle geometry) */
+      body.mode-cover canvas#gameCanvas {
+        object-fit: cover;
+      }
+
+      /* Mode 3: 16:9 Letterbox (Traditional fixed aspect ratio with sidebars) */
+      body.mode-fit #gameContainer {
+        width: auto;
+        aspect-ratio: 16 / 9;
+        max-width: 100vw;
+        max-height: calc(100dvh - 65px);
+        margin: 0 auto;
+        border-left: 1px solid rgba(0, 240, 255, 0.3);
+        border-right: 1px solid rgba(0, 240, 255, 0.3);
+      }
+      body.mode-fit canvas#gameCanvas {
+        object-fit: contain;
       }
 
       /* CRT Scanline Overlay */
@@ -213,7 +211,7 @@
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
-        padding: 18px 24px;
+        padding: 20px 32px;
         z-index: 10;
       }
 
@@ -223,8 +221,8 @@
 
       #touch-dpad {
         position: relative;
-        width: 128px;
-        height: 128px;
+        width: 130px;
+        height: 130px;
         border-radius: 50%;
         background: rgba(15, 23, 42, 0.65);
         border: 2px solid rgba(0, 240, 255, 0.6);
@@ -309,25 +307,22 @@
       }
 
       footer {
-        width: var(--game-w);
-        max-width: 100vw;
-        padding: 5px 14px;
+        width: 100%;
+        padding: 5px 16px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: rgba(15, 23, 42, 0.92);
-        border: 1px solid rgba(0, 240, 255, 0.25);
-        border-top: none;
-        border-radius: 0 0 8px 8px;
+        background: rgba(15, 23, 42, 0.95);
+        border-top: 1px solid rgba(0, 240, 255, 0.25);
         font-size: 11px;
         color: #94a3b8;
         backdrop-filter: blur(8px);
         z-index: 20;
-        transition: width 0.15s ease;
+        flex-shrink: 0;
       }
 
       /* =========================================================
-         TRUE FULLSCREEN STYLING (100% EDGE-TO-EDGE EXPANSION)
+         TRUE FULLSCREEN STYLING (100% BORDERLESS FULL MONITOR)
          ========================================================= */
       :fullscreen html, :fullscreen body,
       :-webkit-full-screen html, :-webkit-full-screen body,
@@ -338,8 +333,6 @@
         width: 100vw !important;
         height: 100vh !important;
         background: #000 !important;
-        justify-content: center !important;
-        align-items: center !important;
       }
 
       :fullscreen header,
@@ -347,16 +340,12 @@
       body.is-fullscreen header {
         position: fixed !important;
         top: 0 !important;
-        left: 50% !important;
-        transform: translateX(-50%) !important;
-        width: min(100vw, calc(100vh * (16 / 9))) !important;
-        max-width: 100vw !important;
+        left: 0 !important;
+        width: 100vw !important;
         background: rgba(15, 23, 42, 0.85) !important;
-        border: 1px solid rgba(0, 240, 255, 0.25) !important;
-        border-top: none !important;
-        border-radius: 0 0 10px 10px !important;
+        border-bottom: 1px solid rgba(0, 240, 255, 0.25) !important;
         z-index: 50 !important;
-        opacity: 0.2 !important;
+        opacity: 0.15 !important;
         transition: opacity 0.25s ease, background 0.25s ease !important;
       }
 
@@ -376,18 +365,22 @@
       :fullscreen #gameContainer,
       :-webkit-full-screen #gameContainer,
       body.is-fullscreen #gameContainer {
-        width: min(100vw, calc(100vh * (16 / 9))) !important;
-        height: min(calc(100vw * (9 / 16)), 100vh) !important;
-        max-width: 100vw !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
         max-height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
         border: none !important;
         border-radius: 0 !important;
         box-shadow: none !important;
       }
 
-      /* Fullscreen in Fill Mode */
-      body.is-fullscreen.mode-fill #gameContainer,
-      :fullscreen.mode-fill #gameContainer {
+      :fullscreen canvas#gameCanvas,
+      :-webkit-full-screen canvas#gameCanvas,
+      body.is-fullscreen canvas#gameCanvas {
         width: 100vw !important;
         height: 100vh !important;
       }
@@ -449,14 +442,8 @@
 
       /* Mobile Specific Responsive Tweaks */
       @media (max-width: 768px) {
-        :root {
-          --available-h: calc(100dvh - 38px);
-          --game-w: min(100vw, calc(var(--available-h) * (16 / 9)));
-        }
-
         header {
           padding: 3px 8px;
-          border-radius: 0;
         }
         .logo-title {
           font-size: 12px;
@@ -467,11 +454,6 @@
         }
         footer {
           display: none;
-        }
-        #gameContainer {
-          border-radius: 0;
-          border-left: none;
-          border-right: none;
         }
       }
     </style>
@@ -484,8 +466,8 @@
         <span id="device-badge" class="nokia-badge device-badge">💻 DETECTING...</span>
       </div>
       <div class="controls-bar">
-        <button id="scaleToggleBtn" class="btn" title="Toggle 16:9 Aspect Fit vs Full Screen Stretch">🔍 Scale: 16:9</button>
-        <button id="fullscreenBtn" class="btn" title="Toggle True Fullscreen">⛶ Fullscreen</button>
+        <button id="scaleToggleBtn" class="btn active" title="Cycle View Modes: Fill Whole Screen, Zoom Cover, 16:9 Fit">📺 Fill: Whole Screen</button>
+        <button id="fullscreenBtn" class="btn" title="Toggle Fullscreen">⛶ Fullscreen</button>
         <button id="touchToggleBtn" class="btn" title="Toggle On-Screen Controls">📱 Touch</button>
         <button id="crtBtn" class="btn active" title="Toggle Scanlines">📺 CRT: ON</button>
         <button id="muteBtn" class="btn" title="Mute Audio [M]">🔊 Audio: ON</button>

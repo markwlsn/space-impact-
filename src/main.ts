@@ -115,14 +115,27 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Scale Mode Toggle (16:9 Fit vs Stretch/Fill)
-  let isFillMode = false;
+  // Scale / Fill Mode Cycling (Whole Screen Fill vs Zoom Cover vs 16:9 Letterbox)
+  type FillMode = 'fill' | 'cover' | 'fit';
+  const fillModes: { mode: FillMode; label: string; cls: string }[] = [
+    { mode: 'fill', label: '📺 Fill: Whole Screen', cls: '' },
+    { mode: 'cover', label: '📐 Fill: Zoom Cover', cls: 'mode-cover' },
+    { mode: 'fit', label: '🔍 Fit: 16:9 Letterbox', cls: 'mode-fit' },
+  ];
+  let currentModeIndex = 0;
+
   scaleToggleBtn?.addEventListener('click', () => {
-    isFillMode = !isFillMode;
-    document.body.classList.toggle('mode-fill', isFillMode);
+    currentModeIndex = (currentModeIndex + 1) % fillModes.length;
+    const current = fillModes[currentModeIndex];
+
+    document.body.classList.remove('mode-cover', 'mode-fit');
+    if (current.cls) {
+      document.body.classList.add(current.cls);
+    }
+
     if (scaleToggleBtn) {
-      scaleToggleBtn.textContent = isFillMode ? '🔍 Scale: Stretched' : '🔍 Scale: 16:9';
-      scaleToggleBtn.classList.toggle('active', isFillMode);
+      scaleToggleBtn.textContent = current.label;
+      scaleToggleBtn.classList.toggle('active', current.mode !== 'fit');
     }
   });
 
